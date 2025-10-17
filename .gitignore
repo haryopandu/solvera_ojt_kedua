@@ -205,3 +205,50 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Bytecode sometimes sneaks under subdirs again
+**/__pycache__/
+
+# Optional: compiled gettext (we keep .po, ignore binary .mo)
+*.mo
+
+# --- Odoo-specific niceties ---
+# Never commit DB dumps or filestore snapshots here
+*.dump
+dump_*.sql
+filestore/
+sessions/
+
+# --- Environment / local config ---
+# .env
+.env.*
+*.local
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# --- Python (base template) ---
+# __pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.log
+*.coverage
+.coverage.*
+.cache/
+.mypy_cache/
+.pytest_cache/
+.tox/
+.venv/
+venv/
+env/
+ENV/
