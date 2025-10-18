@@ -132,3 +132,14 @@ export OJT_VENV="/home/haryo/.venvs/odoo18/bin/activate"  # ID: venv Python Odoo
 export PYENV_ROOT="$HOME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init -)"
+
+# --- Odoo (WSL laptop) ---
+export PYTHONUNBUFFERED=1
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+export NODE_OPTIONS="--max_old_space_size=4096"
+
+# Odoo config paths (dipakai odoo & skrip kita)
+export ODOO_RC="/home/haryo/.odoo/odoo.conf"
+export ODOO_CONF="/home/haryo/.odoo/odoo.conf"
