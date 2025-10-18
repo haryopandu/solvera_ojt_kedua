@@ -1,4 +1,4 @@
-Di bawah ini adalah maintenance script idempotent yang disarankan oleh ChatGPT untuk variabel lingkungan (environment variables) Codex OpenAI setelah mempertimbangkan saran dari Codex. Script ini kompatibel dengan Odoo 18, PostgreSQL 17, dan Python 3.12.12 yang diinstal di WSL
+Di bawah ini adalah maintenance script idempotent yang disarankan oleh ChatGPT untuk eksekusi kode (code execution) Codex OpenAI setelah mempertimbangkan saran dari Codex. Script ini kompatibel dengan Odoo 18, PostgreSQL 17, dan Python 3.12.12 yang diinstal di WSL
 
 #!/usr/bin/env bash
 set -euo pipefail
