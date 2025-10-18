@@ -1,0 +1,20 @@
+Kueri ke-1 pembuatan modul OJT (On the Job) Solvera menggunakan Codex dari OpenAI:
+
+Please create a minimum functional Odoo 18 module which depends on these Odoo modules:
+• hr_recruitment (candidates, vacancies)
+• event (agenda/sessions)
+• website_slides (eLearning/courses and content)
+• survey (quiz/evaluation)
+• portal (participant access)
+• website (public page & certificates verification)
+• mail (chatter, activities, email template)
+• (optional) calendar, rating, utm if needed
+
+Related Odoo models:
+• hr.applicant, hr.job
+• event.event, event.registration
+• slide.channel, slide.slide
+• survey.survey, survey.user_input
+• res.partner, res.users
+
+The module name should be "solvera_ojt_kedua" and the menu root is "OJT Management". Also, please create a submenu which name is "Batches" which is a blank page, for now. Make the module automatically installed. Lastly, do not create any new models and views just yet
