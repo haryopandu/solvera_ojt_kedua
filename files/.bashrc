@@ -1,3 +1,4 @@
+# Kalau belum ada, letakkan di ~/home/haryo
 # ~/.bashrc: executed by bash(1) for non-login shells.
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
@@ -115,31 +116,13 @@ if ! shopt -oq posix; then
     . /etc/bash_completion
   fi
 fi
-# --- OJT (BEGIN) ---
-# Path inti & venv (WSL)
-export OJT_ODOO_DIR="/home/haryo/work/odoo"        # ID: lokasi source Odoo
-export OJT_DB="odoo18"                              # ID: nama database dev
-export OJT_VENV="/home/haryo/.venvs/odoo18/bin/activate"  # ID: venv Python Odoo
-
-# (Opsional) Hanya aktifkan jika Anda butuh `import odoo` dari skrip di luar odoo-bin:
-# export PYTHONPATH="$HOME/work/odoo"
-
-# Catatan: Jangan set ADDONS_PATH di sini.
-#          addons_path sudah didefinisikan di ~/.odoo/odoo.conf dan itu yang dipakai odoo-bin.
-# --- OJT (END) ---
-
-# pyenv init
 export PYENV_ROOT="$HOME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init --path)"
 eval "$(pyenv init -)"
-
-# --- Odoo (WSL laptop) ---
-export PYTHONUNBUFFERED=1
-export PIP_DISABLE_PIP_VERSION_CHECK=1
-export LANG=C.UTF-8
-export LC_ALL=C.UTF-8
-export NODE_OPTIONS="--max_old_space_size=4096"
-
-# Odoo config paths (dipakai odoo & skrip kita)
-export ODOO_RC="/home/haryo/.odoo/odoo.conf"
-export ODOO_CONF="/home/haryo/.odoo/odoo.conf"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv virtualenv-init -)"
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init --path)"
+eval "$(pyenv init -)"

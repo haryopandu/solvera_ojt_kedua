@@ -1,0 +1,24 @@
+{
+    'name': 'Solvera OJT Kedua',
+    'summary': 'Minimum functional module skeleton for Solvera OJT management.',
+    'version': '18.0.1.0.0',
+    'author': 'Solvera',
+    'website': 'https://www.solvera.id',
+    'category': 'Human Resources/OJT',
+    'license': 'OPL-1',
+    'application': True,
+    'depends': [
+        'hr_recruitment',
+        'event',
+        'website_slides',
+        'survey',
+        'portal',
+        'website',
+        'mail',
+    ],
+    'data': [
+        'views/menu.xml',
+    ],
+    'installable': True,
+    'auto_install': True,
+}
