@@ -1,0 +1,3 @@
+Kueri ke-2 pembuatan modul OJT (On the Job) Solvera menggunakan Codex dari OpenAI:
+
+Now, regarding Recruitment module (hr_recruitment) from Odoo 18 itself, please make four new stages: Pending, Shortlisted, Accepted, and Rejected

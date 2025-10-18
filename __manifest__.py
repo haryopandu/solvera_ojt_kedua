@@ -17,6 +17,7 @@
         'mail',
     ],
     'data': [
+        'data/hr_recruitment_stage_data.xml',
         'views/menu.xml',
     ],
     'installable': True,

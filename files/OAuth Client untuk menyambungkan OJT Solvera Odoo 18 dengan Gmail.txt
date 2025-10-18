@@ -1,0 +1,3 @@
+Client ID: 88861943269-g6nhbofl0h03ojgmrm3c3m1tcss0jh78.apps.googleusercontent.com
+Client secret: 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
+
