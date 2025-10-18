@@ -126,11 +126,47 @@ admin_passwd = ${ODOO_ADMIN_PASSWORD:-admin}
 # SMTP (opsional)
 smtp_server = ${SMTP_HOST:-}
 smtp_port = ${SMTP_PORT:-}
-smtp_ssl = ${SMTP_SSL:-False}
+smtp_encryption = ${SMTP_ENCRYPTION:-starttls}   ; prefer starttls di port 587
+smtp_ssl = ${SMTP_SSL:-False}                     ; legacy option (biarkan False jika pakai smtp_encryption)
 smtp_user = ${SMTP_USER:-}
 smtp_password = ${SMTP_PASSWORD:-}
 EOF
 chmod 600 "$USER_HOME/.odoo/odoo.conf"
+
+# -------------------------
+#  Helpers (psql_odoo & pgdump_odoo) — masuk PATH global
+# -------------------------
+install -d /usr/local/bin
+
+# ID: psql_odoo membaca db_uri dari ODOO_CONF (fallback ke $USER_HOME/.odoo/odoo.conf)
+cat >/usr/local/bin/psql_odoo <<BASH
+#!/usr/bin/env bash
+set -euo pipefail
+CONF="\${ODOO_CONF:-$USER_HOME/.odoo/odoo.conf}"
+URI="\$(awk -F= '/^\\s*db_uri\\s*=/{gsub(/^[ \\t]+|[ \\t]+$/,"",\$2); print \$2}' "\$CONF" 2>/dev/null || true)"
+if [ -z "\$URI" ]; then
+  echo "db_uri not found in \$CONF" >&2
+  exit 1
+fi
+exec psql "\$URI" "\$@"
+BASH
+chmod 755 /usr/local/bin/psql_odoo
+
+# ID: pgdump_odoo membuat backup terkompres & otomatis bikin folder /backups
+cat >/usr/local/bin/pgdump_odoo <<BASH
+#!/usr/bin/env bash
+set -euo pipefail
+CONF="\${ODOO_CONF:-$USER_HOME/.odoo/odoo.conf}"
+OUT="\${1:-$USER_HOME/backups/odoo-\$(date +%Y%m%d-%H%M%S).dump}"
+mkdir -p "\$(dirname "\$OUT")"
+URI="\$(awk -F= '/^\\s*db_uri\\s*=/{gsub(/^[ \\t]+|[ \\t]+$/,"",\$2); print \$2}' "\$CONF" 2>/dev/null || true)"
+if [ -z "\$URI" ]; then
+  echo "db_uri not found in \$CONF" >&2
+  exit 1
+fi
+exec pg_dump -Fc -f "\$OUT" "\$URI"
+BASH
+chmod 755 /usr/local/bin/pgdump_odoo
 
 # -------------------------
 #  Sanity check & output ringkas
@@ -151,6 +187,10 @@ ${ODOO_BIN} -c $USER_HOME/.odoo/odoo.conf -d "${DB_NAME}" -u solvera_ojt_core --
 
 # Mode dev dengan auto-reload:
 ${ODOO_BIN} -c $USER_HOME/.odoo/odoo.conf -d "${DB_NAME}" --dev=reload
+
+# DB utilities:
+psql_odoo -c 'SELECT current_database(), version();'
+pgdump_odoo $USER_HOME/backups/odoo-$(date +%F).dump
 
 # Catatan:
 # - PYTHON venv aktif otomatis hanya dalam script ini. Di langkah agent berikutnya,
