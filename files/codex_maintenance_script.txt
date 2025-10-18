@@ -1,76 +1,142 @@
 Di bawah ini adalah maintenance script idempotent yang disarankan oleh ChatGPT untuk eksekusi kode (code execution) Codex OpenAI setelah mempertimbangkan saran dari Codex. Script ini kompatibel dengan Odoo 18, PostgreSQL 17, dan Python 3.12.12 yang diinstal di WSL
 
 #!/usr/bin/env bash
-set -euo pipefail
+# ===========================================================
+#  Maintenance ringan untuk Codex/OpenAPI & WSL
+#  - Smoke test stdlib (Python/XML/manifest)
+#  - Pip refresh ringan
+#  - Odoo -u opsional (hanya bila diminta)
+# ===========================================================
+set -Eeuo pipefail
+trap 'echo "[maint] Gagal di line $LINENO (exit $?)" >&2' ERR
 
 # =========================
-#  Configurable defaults (override via ENV if needed)
+#  Configurable defaults
 # =========================
 USER_HOME="${USER_HOME:-/home/codex}"                 # ganti ke /home/haryo bila di WSL
 VENV_DIR="${VENV_DIR:-$USER_HOME/.venvs/odoo18}"      # lokasi venv Python
 ODOO_DIR="${ODOO_DIR:-$USER_HOME/work/odoo}"          # lokasi Odoo core (git clone 18.0)
 CUSTOM_ADDONS="${CUSTOM_ADDONS:-$USER_HOME/custom_addons}"
 ODOO_CONF="${ODOO_CONF:-$USER_HOME/.odoo/odoo.conf}"  # file konfigurasi Odoo
-DB_NAME_FALLBACK="${ODOO_DB_NAME:-odoo18}"            # fallback jika db_uri tak terbaca
+DB_NAME_FALLBACK="${ODOO_DB_NAME:-odoo18}"
 
-# Kontrol perilaku (opsional):
-AUTO_UPDATE_MODULES="${AUTO_UPDATE_MODULES:-solvera_ojt_core}" # modul yang di-update otomatis (comma-separated)
-MAINT_UPGRADE_ALL="${MAINT_UPGRADE_ALL:-0}"           # 1=upgrade semua paket pip usang (lebih agresif)
-BACKUP_INTERVAL_MIN="${BACKUP_INTERVAL_MIN:-1440}"    # jarak minimal backup (menit); default 24 jam
-VACUUM_ENABLE="${VACUUM_ENABLE:-0}"                   # 1=jalankan VACUUM(ANALYZE)
+# Perilaku
+ADDONS_DIR="${ADDONS_DIR:-addons}"         # root addons di repo ini
+HARD_FAIL="${HARD_FAIL:-0}"                # 0=lapor saja, 1=gagal keras jika ada error smoke test
+RUN_ODOO_UPDATES="${RUN_ODOO_UPDATES:-0}"  # 1=jalankan -u modul (butuh odoo-bin & DB)
+AUTO_UPDATE_MODULES="${AUTO_UPDATE_MODULES:-solvera_ojt_core}"  # modul terpisah koma
 
 # =========================
-#  Helper: activate venv
+#  Helper
 # =========================
-# ID: aktifkan venv bila ada. Tidak fatal jika tidak ditemukan.
-if [ -d "$VENV_DIR" ] && [ -f "$VENV_DIR/bin/activate" ]; then
+run_or_warn() { "$@" || echo "[maint] (non-kritikal) perintah gagal: $*"; }
+
+# =========================
+#  Venv (opsional)
+# =========================
+if [ -f "$VENV_DIR/bin/activate" ]; then
   # shellcheck disable=SC1090
-  source "$VENV_DIR/bin/activate"
+  source "$VENV_DIR/bin/activate" || true
 fi
 
 # =========================
-#  Quick deps refresh (fast no-ops)
+#  Quick deps refresh (ringan)
 # =========================
-# ID: install dari requirements.txt hanya jika ada; only-if-needed mencegah reinstall besar
 if [ -f "requirements.txt" ]; then
-  python3 -m pip install --upgrade --upgrade-strategy only-if-needed -r requirements.txt
+  run_or_warn python3 -m pip install --upgrade --upgrade-strategy only-if-needed -r requirements.txt
 fi
 
-# ID: upgrade lebih agresif bila diizinkan
-if [ "${MAINT_UPGRADE_ALL}" = "1" ]; then
-  # Catatan: ini bisa mengubah versi minor/patch; gunakan jika Anda menginginkan nightly bump.
-  outdated=$(python3 -m pip list --outdated --format=freeze | cut -d= -f1 || true)
-  if [ -n "${outdated:-}" ]; then
-    # shellcheck disable=SC2086
-    python3 -m pip install --upgrade $outdated
+# =========================
+#  Smoke test stdlib: .py compile + .xml parse + manifest check
+#  - Tidak butuh Odoo terpasang
+# =========================
+SMOKE_TMP="$(mktemp)"
+python3 - <<'PY' >"$SMOKE_TMP" || true
+import os, sys, py_compile, ast
+from xml.etree import ElementTree as ET
+
+ROOT = os.path.abspath(".")
+ADDONS = os.path.abspath(os.environ.get("ADDONS_DIR", "addons"))
+SKIP_DIRS = {".git",".venv",".venvs","env","node_modules","__pycache__","build","dist",".ruff_cache",".mypy_cache",".pytest_cache",".idea",".vscode"}
+REQ_KEYS = {"name","version","depends"}
+
+errs = []
+
+def skipdir(d): return d in SKIP_DIRS or d.startswith(".")
+
+def check_py(root):
+    for b, ds, fs in os.walk(root):
+        ds[:] = [d for d in ds if not skipdir(d)]
+        for f in fs:
+            if f.endswith(".py"):
+                p = os.path.join(b,f)
+                try: py_compile.compile(p, doraise=True)
+                except Exception as e: errs.append((p, f"Python syntax error: {e}"))
+
+def check_xml(root):
+    for b, ds, fs in os.walk(root):
+        ds[:] = [d for d in ds if not skipdir(d)]
+        for f in fs:
+            if f.endswith(".xml"):
+                p = os.path.join(b,f)
+                try:
+                    with open(p,"rb") as fh: ET.parse(fh)
+                except Exception as e: errs.append((p, f"XML parse error: {e}"))
+
+def read_manifest_dict(path):
+    with open(path,"r",encoding="utf-8") as fh: src = fh.read()
+    t = ast.parse(src, filename=path)
+    for n in t.body:
+        if isinstance(n, ast.Assign) and isinstance(n.value, ast.Dict):
+            try: return ast.literal_eval(n.value)
+            except Exception: return None
+    return None
+
+def check_manifest(addons_root):
+    for b, ds, fs in os.walk(addons_root):
+        ds[:] = [d for d in ds if not skipdir(d)]
+        if "__manifest__.py" in fs:
+            mp = os.path.join(b,"__manifest__.py")
+            m = read_manifest_dict(mp)
+            if not isinstance(m, dict):
+                errs.append((mp, "Manifest is not a plain dict literal."))
+                continue
+            miss = REQ_KEYS - set(m.keys())
+            if miss: errs.append((mp, f"Missing keys in manifest: {sorted(miss)}"))
+            if "depends" in m and not isinstance(m["depends"], (list, tuple)):
+                errs.append((mp, "'depends' harus berupa list/tuple"))
+
+check_py(ROOT)
+check_xml(ROOT)
+if os.path.isdir(ADDONS): check_manifest(ADDONS)
+
+if errs:
+    print("=== Smoke Test Errors ===")
+    for p,msg in errs: print(f"- {p}: {msg}")
+    print(f"Total errors: {len(errs)}")
+    sys.exit(2)
+else:
+    print("Smoke test passed ✓")
+    sys.exit(0)
+PY
+
+SMOKE_RC=$?
+cat "$SMOKE_TMP" || true
+rm -f "$SMOKE_TMP"
+
+if [ "$SMOKE_RC" -ne 0 ]; then
+  if [ "$HARD_FAIL" = "1" ]; then
+    echo "[maint] HARD_FAIL=1 -> gagal."
+    exit "$SMOKE_RC"
+  else
+    echo "[maint] HARD_FAIL=0 -> lanjut walau ada error."
   fi
 fi
 
 # =========================
-#  Node deps (jarang untuk modul Odoo murni)
+#  Cari odoo-bin (opsional)
 # =========================
-# ID: gunakan npm ci hanya jika ada lockfile; aman diabaikan bila npm tidak ada
-if [ -f "package-lock.json" ] || [ -f "pnpm-lock.yaml" ] || [ -f "yarn.lock" ]; then
-  if command -v npm >/dev/null 2>&1; then
-    npm ci || true
-  fi
-fi
-
-# =========================
-#  Local PostgreSQL 17 (opsional, bila disiapkan saat Setup)
-# =========================
-# ID: hidupkan kembali cluster lokal jika ada folder pgdata milik script Setup
-if [ -d "$USER_HOME/pgdata" ]; then
-  /usr/lib/postgresql/17/bin/pg_ctl -D "$USER_HOME/pgdata" status >/dev/null 2>&1 || \
-  /usr/lib/postgresql/17/bin/pg_ctl -D "$USER_HOME/pgdata" -l "$USER_HOME/pg.log" -o '-p 5432' start
-fi
-
-# =========================
-#  Discover Odoo core's odoo-bin & core addons
-# =========================
-# ID: deteksi beberapa kemungkinan layout (odoo/odoo-bin atau odoo/odoo/odoo-bin), termasuk .deps/odoo
 ODOO_BIN=""
-CORE_ADDONS=""
 candidates=(
   "$ODOO_DIR/odoo/odoo-bin"
   "$ODOO_DIR/odoo-bin"
@@ -78,98 +144,28 @@ candidates=(
   "$(pwd)/.deps/odoo/odoo-bin"
 )
 for b in "${candidates[@]}"; do
-  if [ -x "$b" ]; then
-    ODOO_BIN="$b"
-    break
-  fi
+  if [ -x "$b" ]; then ODOO_BIN="$b"; break; fi
 done
 
-if [ -n "$ODOO_BIN" ]; then
-  if [ -d "$ODOO_DIR/odoo/addons" ]; then
-    CORE_ADDONS="$ODOO_DIR/odoo/addons"
-  elif [ -d "$ODOO_DIR/addons" ]; then
-    CORE_ADDONS="$ODOO_DIR/addons"
-  elif [ -d "$(dirname "$ODOO_BIN")/addons" ]; then
-    CORE_ADDONS="$(dirname "$ODOO_BIN")/addons"
-  fi
-fi
-
 # =========================
-#  Parse db_uri from odoo.conf for backup/maintenance
+#  Parse db_uri (untuk -u atau backup jika dibutuhkan)
 # =========================
-# ID: jangan echo nilai rahasia; parsing dilakukan diam-diam
 DB_URI="$(awk -F'=' '/^[[:space:]]*db_uri[[:space:]]*=/{sub(/^[ \t]+/,"",$2); sub(/[ \t]+$/,"",$2); print $2}' "$ODOO_CONF" 2>/dev/null || true)"
 if [ -z "${DB_URI:-}" ]; then
-  # Fallback aman untuk lokal dev
   DB_URI="postgresql://odoo:odoo@127.0.0.1:5432/${DB_NAME_FALLBACK}"
 fi
 
-# shellcheck disable=SC2046
-eval "$(
-  DB_URI="$DB_URI" python3 - <<'PY'
-import os, sys, urllib.parse
-uri = os.environ.get("DB_URI", "")
-try:
-    u = urllib.parse.urlsplit(uri)
-    user = urllib.parse.unquote(u.username or "odoo")
-    pwd  = urllib.parse.unquote(u.password or "")
-    host = (u.hostname or "127.0.0.1")
-    port = (u.port or 5432)
-    db   = (u.path or "").lstrip("/") or "postgres"
-except Exception:
-    user, pwd, host, port, db = "odoo", "", "127.0.0.1", 5432, "postgres"
-print(f'__DB_USER__="{user}"')
-print(f'__DB_PASSWORD__="{pwd}"')
-print(f'__DB_HOST__="{host}"')
-print(f'__DB_PORT__="{port}"')
-print(f'__DB_NAME__="{db}"')
-PY
-)"
-
 # =========================
-#  Backup database (compressed, retention-aware)
+#  Odoo -u modul (opsional & aman dilewati)
 # =========================
-# ID: jalankan backup hanya jika cukup waktu berlalu sejak backup terakhir (default 24 jam)
-mkdir -p "$USER_HOME/backups" "$USER_HOME/.cache/odoo-maint"
-STAMP="$USER_HOME/.cache/odoo-maint/last_backup.stamp"
-now_s=$(date +%s)
-last_s=0
-if [ -f "$STAMP" ]; then
-  last_s=$(date -r "$STAMP" +%s 2>/dev/null || echo 0)
-fi
-delta_min=$(( (now_s - last_s) / 60 ))
-if [ "$delta_min" -ge "$BACKUP_INTERVAL_MIN" ]; then
-  # ID: gunakan PGPASSWORD agar tidak prompt; jangan echo password
-  ts="$(date +%Y%m%d-%H%M%S)"
-  outfile="$USER_HOME/backups/${__DB_NAME__}_${ts}.dump"
-  if command -v pg_dump >/dev/null 2>&1; then
-    PGPASSWORD="${__DB_PASSWORD__}" \
-      pg_dump -h "${__DB_HOST__}" -U "${__DB_USER__}" -p "${__DB_PORT__}" \
-              -d "${__DB_NAME__}" --format=c --no-owner --file "$outfile" || true
-    touch "$STAMP"
-  fi
-fi
-
-# =========================
-#  Optional VACUUM(ANALYZE)
-# =========================
-if [ "${VACUUM_ENABLE}" = "1" ] && command -v psql >/dev/null 2>&1; then
-  PGPASSWORD="${__DB_PASSWORD__}" \
-    psql -h "${__DB_HOST__}" -U "${__DB_USER__}" -p "${__DB_PORT__}" -d "${__DB_NAME__}" \
-         -v ON_ERROR_STOP=1 -c "VACUUM (ANALYZE);" || true
-fi
-
-# =========================
-#  Auto-update modules (schema/data refresh), then exit
-# =========================
-# ID: jalankan -u untuk modul tertentu; gunakan --stop-after-init agar maintenance singkat
-if [ -n "${AUTO_UPDATE_MODULES}" ] && [ -n "${ODOO_BIN:-}" ]; then
+if [ "$RUN_ODOO_UPDATES" = "1" ] && [ -n "$ODOO_BIN" ]; then
   IFS=',' read -r -a _mods <<< "$AUTO_UPDATE_MODULES"
   for m in "${_mods[@]}"; do
-    m_trim="$(echo "$m" | xargs)"
-    [ -z "$m_trim" ] && continue
-    "$ODOO_BIN" -c "$ODOO_CONF" -d "${__DB_NAME__}" -u "$m_trim" --stop-after-init || true
+    m="$(echo "$m" | xargs)"; [ -z "$m" ] && continue
+    run_or_warn "$ODOO_BIN" -c "$ODOO_CONF" -d "${DB_NAME_FALLBACK}" -u "$m" --stop-after-init
   done
+else
+  echo "[maint] RUN_ODOO_UPDATES=0 atau odoo-bin tidak ditemukan; lewati -u."
 fi
 
-echo "[OK] Maintenance refresh done."
+echo "[OK] Maintenance selesai (HARD_FAIL=${HARD_FAIL})."
