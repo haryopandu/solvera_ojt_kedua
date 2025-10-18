@@ -1,0 +1,45 @@
+Diperoleh dari Google Cloud Console (https://console.cloud.google.com/auth/audience?project=ojt-solvera-odoo-18) dan digunakan untuk menghubungkan Odoo 18 dengan layanan autentikasi Google.
+
+Lihat dokumentasi resmi dari Odoo untuk versi 18: https://www.odoo.com/documentation/18.0/applications/general/email_communication/google_oauth.html
+
+Caranya dari sisi Odoo:
+Pastikan Google Gmail telah terinstal (hilangkan filter "Apps) --> Settings --> bagian Emails --> keterangan Use a Gmail Server dan tempel di baris ID dan Secret --> pilih Outgoing Email Servers --> klik New (buat koneksi baru) --> Isi Nama, From Filtering dengan pos-el pribadi, pilih Gmail OAuth Authentication pada bagian Authenticate with --> pilih TLS (STARTTLS) pada Connection Encryption --> isi SMTP Server dengan smtp.gmail.com (kalau belum) --> isi SMTP Port dengan 587 (kalau belum) --> isi Username dengan pos-el pribadi --> lalu klik tombol di bawahnya (aku lupa namanya apa)
+
+(Optional) Configure Incoming Mail (IMAP via OAuth) (di Odoo juga)
+1. Settings → Technical → Email → Incoming Mail Servers → New
+2. Server: imap.gmail.com, Port 993, SSL/TLS, Auth: Gmail OAuth/Connect your Gmail Account
+3. Save, then Test & Confirm. (General 18.0 mail-server steps here.)
+
+Pada ChatGPT, informasi ini bisa dicari dengan kalimat (prompt): How do I connect Gmail to Odoo 18 using Google OAuth?
+
+Jawabannya (beda format angka dan bullet point) yaitu:
+1. Go to Google Cloud Console → create/select a project.
+2. Open APIs & Services → OAuth consent screen. Choose External (personal Gmail) or Internal (Google Workspace), fill the basics, and add your test users if you keep the app in Testing mode (or you’ll hit a 403 later).
+FYI: Since Mar 14, 2025, Google requires OAuth for third-party access to Gmail/Calendar/Contacts. No more basic password auth.
+3. Still in APIs & Services → Library, enable Gmail API (needed even if you use IMAP/SMTP via OAuth
+IMAP must be on for the mailbox (and for Workspace orgs you may need to allow POP/IMAP for users in Admin Console)
+4. APIs & Services → Credentials → Create credentials → OAuth client ID
+5. Application type: Web application (not “Desktop App”—desktop will cause redirect errors)
+6. Add an Authorized redirect URI: Odoo Online: https://<yourdbname>.odoo.com/google_gmail/confirm (exactly this path), Self-hosted (public domain): https://<your-domain>/google_gmail/confirm, Local dev: http://localhost:8069/google_gmail/confirm is allowed for localhost while testing. (Google allows HTTP only for localhost URIs.)
+7. Save the Client ID and Client Secret
+* Sebaiknya tangkap layar (screenshot) dan salin keduanya serta simpan
+Scopes note: For IMAP/SMTP, Google uses the single full mail scope https://mail.google.com/. That’s expected for XOAUTH2 against IMAP/SMTP.
+
+Common gotchas (and quick fixes)
+1. redirect_uri_mismatch during consent
+Your Google OAuth Authorized redirect URI must exactly match your Odoo base URL + /google_gmail/confirm. Use HTTPS for public domains; HTTP allowed only for localhost. Also ensure you chose Web application when creating the client
+2. 403 “access_denied” on consent
+In Testing mode, add the mailbox as a Test user on the consent screen
+* Caranya adalah dengan mencari dan memilih menu OAuth consent screen --> Audience ---> Add users (di bagian Test Users). Isi dengan pos-el pribadi
+3. Forbidden / module outdated
+Upgrade the Google Gmail module in Apps
+4. Everything sends “from” the admin who connected Gmail
+That happens if you use a single global outgoing server bound to one user’s token. Create per-user outgoing servers (each user connects their Gmail), or route emails through the right server via priorities. (A frequent report from the field.)
+5. Tokens & IMAP sessions “expire”
+Gmail access tokens are short-lived (~1 hour). Odoo stores the refresh token and renews them; however, if a user revokes access you’ll need to Reconnect your Gmail Account. Gmail also limits IMAP session lengths.
+
+Policy & admin reminders
+1. Google now requires OAuth for Gmail access by third-party apps; classic password auth is not accepted (except special cases like app passwords under strict conditions).
+2. For Workspace orgs, ensure IMAP is allowed for users in Admin Console.
+
+
