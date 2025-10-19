@@ -1,0 +1,60 @@
+Please implement the ojt.batch model, views, security files, and other files necessary except other models and views. Do not implement other models and views just yet. Importantly, please make sure the codes are compatible with Odoo 18. Here are the details: 
+● name: Char [required, index]
+● code: Char [required, unique] - (sequence: OJTBATCH/%(year)s/%(seq)05d)
+● job_id: Many2one(hr.job) - related job/position (for Recruitment)
+● description: Html
+● department_id: Many2one(hr.department)
+● mentor_ids: Many2many(res.partner, rel='ojt_batch_mentor_rel')
+● start_date: Date [required]
+● end_date: Date [required]
+● mode: Selection([('online', 'Online'), ('offline', 'Offline'), ('hybrid', 'Hybrid')]) [default='online']
+● capacity: Integer
+● participant_ids: One2many(ojt.participant, 'batch_id')
+● event_link_ids: One2many(ojt.event.link, 'batch_id')
+● course_ids: Many2many(slide.channel, rel='ojt_batch_channel_rel')
+● survey_id: Many2one(survey.survey) - batch evaluation survey (optional)
+● state: Selection([('draft', 'Draft'), ('recruit', 'Recruitment'), ('ongoing', 'Ongoing'), ('done', 'Done'),('cancel', 'Cancelled')]) [default='draft', track_visibility='onchange']
+● certificate_rule_attendance: Float [default=80.0] – % of minimum attendances
+● certificate_rule_score: Float [default=70.0] - minimum passing grade
+● progress_ratio: Float [compute=_compute_progress_ratio, store=True] - batch average progress
+● color: Integer - For kanban cards color
+● company_id: Many2one(res.company) [default=current_company, required]
+● active: Boolean [default=True]
+
+Constraints/Business Rules:
+● start_date <= end_date
+● state automatically changes:
+○ Recruit → when registration is opened (link to hr.applicant)
+○ Ongoing → when the start date is reached or the first event is started
+○ Done → when all the agenda and the final scoring are done 
+● Several fields becoming read-only when state in ('ongoing', 'done')
+
+The ojt_group_manager has full access to all and upcoming OJT objects.
+
+The batches views should be made in kanban, list, and form. It can be accessed through OJT Management → Batches.  The form view should display:
+● name as Batch Name
+● code as Batch Code
+● job_id as Recruitment Job
+● description as Description
+● department_id as Department
+● mentor_ids as Mentors
+● start_date as Start Date
+● end_date as End Date
+● mode as Mode
+● capacity as Capacity
+● participant_ids as Participants
+● event_link_ids as Event Links
+● course_ids as Courses
+● certificate_rule_attendance as Certificate Rule (Attendance %)
+● certificate_rule_score as Certificate Rule (Score)
+● progress_ratio as Progress Ratio
+● state as State
+
+The four other fields should also be displayed in its form view.
+
+The access rules for other roles regarding ojt.batch are:
+● ojt_group_coordinator: Full CRUD access
+● ojt_group_mentor: Read-only
+● ojt_group_trainer: Read-only
+
+For the Batch kanban cards, please display: Name, Start date, End date, Progress bar (%), total participants, and color status. The cards should also be draggable to change their states
