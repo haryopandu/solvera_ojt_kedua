@@ -1,3 +1,5 @@
 Kueri ke-2 pembuatan modul OJT (On the Job) Solvera menggunakan Codex dari OpenAI:
 
-Now, regarding Recruitment module (hr_recruitment) from Odoo 18 itself, please make four new stages: Pending, Shortlisted, Accepted, and Rejected
+Now, regarding Recruitment module (hr_recruitment) from Odoo 18 itself, please make four new stages: Pending, Shortlisted, Accepted, and Rejected. Also, please add a new button called "Enroll to OJT" in the Recruitment but it is only active if the candidate is on the "Accepted" stage.
+
+Lastly, please use the substitute for "attrs" attribute because "attrs" is deprecated in Odoo 18
