@@ -1,0 +1,66 @@
+# Letakkan di ~/bin (\\wsl.localhost\Ubuntu-24.04\home\haryo\bin)
+#!/usr/bin/env bash
+set -euo pipefail
+
+# venv
+source /home/haryo/.venvs/odoo18/bin/activate || { echo "Venv Odoo 18 belum ada"; exit 1; }
+
+# force TCP to dodge peer auth
+export PGHOST=127.0.0.1 PGPORT=5432 PGUSER=odoo PGPASSWORD=admin
+
+# detect odoo core
+ODOO_DIR=""
+for d in /home/haryo/work/odoo /home/haryo/work/odoo18; do
+  [ -x "$d/odoo-bin" ] && { ODOO_DIR="$d"; break; }
+done
+[ -n "$ODOO_DIR" ] || { echo "Tidak menemukan odoo-bin"; exit 1; }
+
+# build addons path (two cores + custom)
+ADDONS=()
+[ -d "$ODOO_DIR/odoo/addons" ] && ADDONS+=("$ODOO_DIR/odoo/addons")
+[ -d "$ODOO_DIR/addons" ]      && ADDONS+=("$ODOO_DIR/addons")
+[ -d "/home/haryo/custom_addons" ] && ADDONS+=("/home/haryo/custom_addons")
+ADDONS_PATH="$(IFS=,; echo "${ADDONS[*]}")"
+
+# choose port (fallback to 8071 if 8069 busy)
+PORT="${ODOO_HTTP_PORT:-8069}"
+if ss -ltn 2>/dev/null | grep -q ":${PORT} "; then
+  [ "$PORT" = "8069" ] && PORT=8071
+fi
+
+MODULE="solvera_ojt_kedua"
+ACTION="-i"
+if psql "postgresql://odoo:admin@127.0.0.1:5432/odoo18" -Atqc \
+   "SELECT state FROM ir_module_module WHERE name='${MODULE}'" | grep -q installed; then
+  ACTION="-u"
+fi
+
+echo "==> ODOO_BIN    : $ODOO_DIR/odoo-bin"
+echo "==> ADDONS_PATH : $ADDONS_PATH"
+echo "==> DB          : odoo18"
+echo "==> MODULE      : ${MODULE} → ACTION ${ACTION}"
+echo "==> HTTP PORT   : ${PORT}"
+echo "==> LOG         : stdout"
+
+# upgrade/install with console logs
+set +e
+"$ODOO_DIR/odoo-bin" -c "$HOME/.odoo/odoo.conf" \
+  --addons-path="$ADDONS_PATH" -d odoo18 \
+  ${ACTION} "${MODULE}" --stop-after-init \
+  --log-level=debug --logfile=/dev/stdout
+RC=$?
+set -e
+
+echo "Upgrade exit code: $RC"
+
+# start server (debug if upgrade failed), logs to console
+if [ "$RC" -ne 0 ]; then
+  echo "!! Upgrade gagal (RC=$RC). Menjalankan server untuk investigasi…"
+  exec "$ODOO_DIR/odoo-bin" -c "$HOME/.odoo/odoo.conf" \
+    --addons-path="$ADDONS_PATH" -d odoo18 \
+    --http-port="$PORT" --log-level=debug --logfile=/dev/stdout
+fi
+
+exec "$ODOO_DIR/odoo-bin" -c "$HOME/.odoo/odoo.conf" \
+  --addons-path="$ADDONS_PATH" -d odoo18 \
+  --dev=reload --http-port="$PORT" --logfile=/dev/stdout
