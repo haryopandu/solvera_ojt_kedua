@@ -1,4 +1,4 @@
-# Letakkan di ~\home\haryo\bin (\\wsl.localhost\Ubuntu-24.04\home\haryo\bin)
+# Letakkan di ~/bin (\\wsl.localhost\Ubuntu-24.04\home\haryo\bin)
 #!/usr/bin/env bash
 set -euo pipefail
 
