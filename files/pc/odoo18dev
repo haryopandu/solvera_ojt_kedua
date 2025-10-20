@@ -1,0 +1,35 @@
+# Letakkan di \\wsl.localhost\Ubuntu-24.04\home\haryo\bin
+#!/usr/bin/env bash
+set -euo pipefail
+
+source /home/haryo/.venvs/odoo18/bin/activate || { echo "Venv Odoo 18 belum ada"; exit 1; }
+
+# normal run: let odoo.conf control DB; don't force PG* here
+unset PGHOST PGPORT PGUSER PGPASSWORD
+
+ODOO_DIR=""
+for d in /home/haryo/work/odoo /home/haryo/work/odoo18; do
+  [ -x "$d/odoo-bin" ] && { ODOO_DIR="$d"; break; }
+done
+[ -n "$ODOO_DIR" ] || { echo "Tidak menemukan odoo-bin"; exit 1; }
+
+ADDONS=()
+[ -d "$ODOO_DIR/odoo/addons" ] && ADDONS+=("$ODOO_DIR/odoo/addons")
+[ -d "$ODOO_DIR/addons" ]      && ADDONS+=("$ODOO_DIR/addons")
+[ -d "/home/haryo/custom_addons" ] && ADDONS+=("/home/haryo/custom_addons")
+ADDONS_PATH="$(IFS=,; echo "${ADDONS[*]}")"
+
+PORT="${ODOO_HTTP_PORT:-8069}"
+if ss -ltn 2>/dev/null | grep -q ":${PORT} "; then
+  [ "$PORT" = "8069" ] && PORT=8071
+fi
+
+echo "==> ODOO_BIN    : $ODOO_DIR/odoo-bin"
+echo "==> ADDONS_PATH : $ADDONS_PATH"
+echo "==> DB          : odoo18"
+echo "==> HTTP PORT   : ${PORT}"
+echo "==> LOG         : stdout"
+
+exec "$ODOO_DIR/odoo-bin" -c "$HOME/.odoo/odoo.conf" \
+  --addons-path="$ADDONS_PATH" -d odoo18 \
+  --dev=reload --http-port="$PORT" --logfile=/dev/stdout
