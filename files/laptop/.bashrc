@@ -223,3 +223,21 @@ export ODOO_CONF="$HOME/.odoo/odoo.conf"
 # _ojt_auto_venv() { [[ "$PWD" == /home/haryo/work/* || "$PWD" == /home/haryo/custom_addons/* ]] && source /home/haryo/.venvs/odoo18/bin/activate 2>/dev/null || return 0; }
 # PROMPT_COMMAND="_ojt_auto_venv; $PROMPT_COMMAND"
 # (ID) Catatan: PROMPT_COMMAND dieksekusi setiap prompt—jika mengganggu, biarkan tetap dikomentari.
+
+# (ID) Jalankan: ojtgo  → install/upgrade solvera_ojt_kedua lalu start Odoo
+ojtgo() {
+  source /home/haryo/.venvs/odoo18/bin/activate || return 1
+  local ODOO_DIR="/home/haryo/work/odoo"
+  [ -x "$ODOO_DIR/odoo-bin" ] || ODOO_DIR="/home/haryo/work/odoo18"
+  local ADDONS=""
+  for p in "$ODOO_DIR/odoo/addons" "$ODOO_DIR/addons" "/home/haryo/custom_addons"; do
+    [ -d "$p" ] && ADDONS="${ADDONS:+$ADDONS,}$p"
+  done
+  local ACTION="-i"
+  if psql "postgresql://odoo:admin@127.0.0.1:5432/odoo18" -Atqc \
+     "SELECT state FROM ir_module_module WHERE name='solvera_ojt_kedua'" | grep -q installed; then
+    ACTION="-u"
+  fi
+  "$ODOO_DIR/odoo-bin" -c ~/.odoo/odoo.conf --addons-path="$ADDONS" -d odoo18 $ACTION solvera_ojt_kedua --stop-after-init &&
+  "$ODOO_DIR/odoo-bin" -c ~/.odoo/odoo.conf --addons-path="$ADDONS" -d odoo18 --dev=reload
+}
