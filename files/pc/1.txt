@@ -1,1 +1,5 @@
 File awal untuk membuat folder baru bernama PC
+
+Cara menjalankan Odoo 18 di PC saat ini:
+wsl -d Ubuntu-24.04 -- ojtgo # upgrade/install your module, then start (logs on console)
+wsl -d Ubuntu-24.04 -- odoo18dev # start dev server (logs on console)
