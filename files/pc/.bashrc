@@ -1,4 +1,4 @@
-# Kalau belum ada, letakkan di ~/home/haryo (\\wsl.localhost\Ubuntu-24.04\home\haryo)
+# Kalau belum ada, letakkan di ~ (\\wsl.localhost\Ubuntu-24.04\home\haryo)
 # ~/.bashrc: executed by bash(1) for non-login shells.
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
