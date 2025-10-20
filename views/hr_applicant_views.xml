@@ -1,0 +1,21 @@
+<odoo>
+    <data>
+        <record id="view_hr_applicant_form_enroll_ojt" model="ir.ui.view">
+            <field name="name">hr.applicant.form.enroll.ojt</field>
+            <field name="model">hr.applicant</field>
+            <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//sheet" position="inside">
+                    <field name="can_enroll_to_ojt" invisible="1"/>
+                </xpath>
+                <xpath expr="//header" position="inside">
+                    <button name="action_enroll_to_ojt"
+                            type="object"
+                            string="Enroll to OJT"
+                            class="oe_highlight"
+                            modifiers="{'invisible': [('can_enroll_to_ojt', '=', False)]}"/>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>

@@ -18,6 +18,7 @@
     ],
     'data': [
         'data/hr_recruitment_stage_data.xml',
+        'views/hr_applicant_views.xml',
         'views/menu.xml',
     ],
     'installable': True,
