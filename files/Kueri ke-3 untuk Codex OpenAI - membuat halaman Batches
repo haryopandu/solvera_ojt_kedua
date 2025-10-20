@@ -1,4 +1,4 @@
-Please implement the ojt.batch model, views, security files, and other files necessary except other models and views. Do not implement other models and views just yet. Importantly, please make sure the codes are compatible with Odoo 18. Here are the details: 
+Please implement the ojt.batch model, views, security files, and other files necessary except other models and views. Do not implement other models and views just yet. Importantly, please make sure the codes are compatible with Odoo 18, so please do not use "attrs" and "tree" attributes. Here are the details: 
 ● name: Char [required, index]
 ● code: Char [required, unique] - (sequence: OJTBATCH/%(year)s/%(seq)05d)
 ● job_id: Many2one(hr.job) - related job/position (for Recruitment)
@@ -57,4 +57,4 @@ The access rules for other roles regarding ojt.batch are:
 ● ojt_group_mentor: Read-only
 ● ojt_group_trainer: Read-only
 
-For the Batch kanban cards, please display: Name, Start date, End date, Progress bar (%), total participants, and color status. The cards should also be draggable to change their states
+For the Batch kanban cards, please display: Name, start date and end date in one line, average progress bar (%), total active participants, nearest agenda, and color status. The cards should also be draggable to change their states
