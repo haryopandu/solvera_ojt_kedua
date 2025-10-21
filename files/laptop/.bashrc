@@ -1,3 +1,4 @@
+# Jalankan dengan perintah wsl -d Ubuntu-24.04 lalu ojtgo di PowerShell
 # ~/.bashrc: executed by bash(1) for non-login shells.
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
@@ -149,9 +150,9 @@ export ODOO_CONF="/home/haryo/.odoo/odoo.conf"
 # (ID) Aktifkan venv Odoo 18 dengan cepat
 alias vodo='source /home/haryo/.venvs/odoo18/bin/activate'
 
-# (ID) Deteksi Odoo core: prefer /work/odoo (laptop), fallback /work/odoo18 (PC)
+# (ID) Deteksi Odoo core: prefer /work/odoo (laptop), fallback /work/odoo (PC)
 _ojt_detect_odoo_dir() {
-  for d in /home/haryo/work/odoo /home/haryo/work/odoo18; do
+  for d in /home/haryo/work/odoo /home/haryo/work/odoo; do
     [ -x "$d/odoo-bin" ] && { printf "%s" "$d"; return 0; }
   done
   return 1
@@ -180,7 +181,7 @@ odoo18dev() {
 alias cdkedua='code /home/haryo/custom_addons/solvera_ojt_kedua'
 
 # (ID) Jalan cepat skrip proyek kamu (ojtkedua_run.sh) bila ada
-alias ojtgo='/home/haryo/ojtkedua_run.sh'
+# alias ojtgo='/home/haryo/ojtkedua_run.sh'
 
 # ====== pyenv (standar & aman) ======
 # (ID) Inisialisasi pyenv hanya jika terpasang—hindari error saat shell start
@@ -218,26 +219,97 @@ export NODE_OPTIONS="--max_old_space_size=4096"
 export ODOO_RC="$HOME/.odoo/odoo.conf"
 export ODOO_CONF="$HOME/.odoo/odoo.conf"
 
-# ====== (Opsional) Auto-activate venv saat masuk folder kerja Odoo ======
-# (ID) Nonaktifkan default; aktifkan kalau mau: hapus # di awal 3 baris di bawah
-# _ojt_auto_venv() { [[ "$PWD" == /home/haryo/work/* || "$PWD" == /home/haryo/custom_addons/* ]] && source /home/haryo/.venvs/odoo18/bin/activate 2>/dev/null || return 0; }
-# PROMPT_COMMAND="_ojt_auto_venv; $PROMPT_COMMAND"
-# (ID) Catatan: PROMPT_COMMAND dieksekusi setiap prompt—jika mengganggu, biarkan tetap dikomentari.
-
-# (ID) Jalankan: ojtgo  → install/upgrade solvera_ojt_kedua lalu start Odoo
+# =========================================================
+#  ojtgo: Jalankan Odoo 18 (WSL) utk modul tertentu
+#  Pakai: ojtgo [nama_modul] [nama_db]
+#  Contoh: ojtgo solvera_ojt_kedua odoo18
+#  Default: modul=solvera_ojt_kedua, db=odoo18
+# =========================================================
 ojtgo() {
-  source /home/haryo/.venvs/odoo18/bin/activate || return 1
-  local ODOO_DIR="/home/haryo/work/odoo"
-  [ -x "$ODOO_DIR/odoo-bin" ] || ODOO_DIR="/home/haryo/work/odoo18"
-  local ADDONS=""
-  for p in "$ODOO_DIR/odoo/addons" "$ODOO_DIR/addons" "/home/haryo/custom_addons"; do
-    [ -d "$p" ] && ADDONS="${ADDONS:+$ADDONS,}$p"
-  done
-  local ACTION="-i"
-  if psql "postgresql://odoo:admin@127.0.0.1:5432/odoo18" -Atqc \
-     "SELECT state FROM ir_module_module WHERE name='solvera_ojt_kedua'" | grep -q installed; then
-    ACTION="-u"
+  set -euo pipefail
+  # ---------- Konfigurasi dasar (ID) ----------
+  local USER_HOME="/home/haryo"
+  local VENV_DIR="$USER_HOME/.venvs/odoo18"        # venv Python 3.12 utk Odoo 18
+  local ODOO_DIR="$USER_HOME/work/odoo"            # lokasi Odoo 18 (laptop)
+  local CUSTOM_ADDONS="$USER_HOME/custom_addons"   # direktori addon kustom
+  local MODULE="${1:-solvera_ojt_kedua}"           # modul default
+  local DB="${2:-odoo18}"                          # nama DB default
+
+  # ---------- Pin interpreter venv (ID) ----------
+  local PY="$VENV_DIR/bin/python"
+  local PIP="$VENV_DIR/bin/pip"
+  if [ ! -x "$PY" ]; then
+    echo "Venv tidak ditemukan: $VENV_DIR (buat venv Python 3.12 dulu)"; return 1
   fi
-  "$ODOO_DIR/odoo-bin" -c ~/.odoo/odoo.conf --addons-path="$ADDONS" -d odoo18 $ACTION solvera_ojt_kedua --stop-after-init &&
-  "$ODOO_DIR/odoo-bin" -c ~/.odoo/odoo.conf --addons-path="$ADDONS" -d odoo18 --dev=reload
+
+  # ---------- Start PostgreSQL 17 (ID) ----------
+  if command -v pg_isready >/dev/null 2>&1; then
+    if ! pg_isready -q; then
+      sudo systemctl start postgresql 2>/dev/null || \
+      sudo service postgresql start 2>/dev/null || \
+      sudo pg_ctlcluster 17 main start || true
+    fi
+  fi
+  if command -v pg_lsclusters >/dev/null 2>&1; then
+    pg_lsclusters | awk '{print $1" "$2" "$4}' | grep -qE '^17 main online$' || \
+      sudo pg_ctlcluster 17 main start || true
+  fi
+
+  # ---------- Update Odoo core + deps (ID) ----------
+  if [ ! -d "$ODOO_DIR/.git" ]; then
+    echo "Repo Odoo tidak ditemukan: $ODOO_DIR"; return 1
+  fi
+  ( cd "$ODOO_DIR" && \
+    git fetch --all --tags && \
+    (git switch 18.0 2>/dev/null || git checkout -B 18.0 origin/18.0) && \
+    git pull --ff-only
+  )
+  "$PY" -m pip install -U pip setuptools wheel
+  [ -f "$ODOO_DIR/requirements.txt" ] && "$PIP" install -r "$ODOO_DIR/requirements.txt"
+  # Pastikan modul tambahan ada (ID)
+  "$PIP" show Babel >/dev/null 2>&1 || "$PIP" install "Babel>=2.6.0"
+  "$PIP" show pdfminer.six >/dev/null 2>&1 || "$PIP" install "pdfminer.six"
+
+  # ---------- Hitung addons-path & temukan modul (ID) ----------
+  local ODOO_BIN="$ODOO_DIR/odoo-bin"
+  [ -x "$ODOO_BIN" ] || ODOO_BIN="$ODOO_DIR/odoo/odoo-bin"
+  [ -x "$ODOO_BIN" ] || { echo "Tidak menemukan odoo-bin"; return 1; }
+  local ADDONS_CORE
+  ADDONS_CORE="$(dirname "$ODOO_BIN")/addons"
+
+  sudo mkdir -p "$CUSTOM_ADDONS"
+  sudo chown -R "$(id -u -n)":"$(id -g -n)" "$CUSTOM_ADDONS"
+
+  local ADDONS_CUSTOM="$CUSTOM_ADDONS"
+  if [ ! -d "$CUSTOM_ADDONS/$MODULE" ]; then
+    # auto-locate modul di HOME (ID)
+    local FOUND_MOD_DIR
+    FOUND_MOD_DIR="$(find "$USER_HOME" -maxdepth 6 -type d -name "$MODULE" 2>/dev/null | head -n1 || true)"
+    [ -n "${FOUND_MOD_DIR:-}" ] && ADDONS_CUSTOM="$(dirname "$FOUND_MOD_DIR")"
+  fi
+
+  # ---------- Pastikan DB ada (ID) ----------
+  if command -v psql >/dev/null 2>&1; then
+    psql -Atqc "SELECT 1 FROM pg_database WHERE datname='${DB}'" postgres >/dev/null 2>&1 || createdb "${DB}" || true
+  fi
+
+  # ---------- Tentukan install (-i) atau upgrade (-u) (ID) ----------
+  local ACTION="-i"
+  if command -v psql >/dev/null 2>&1; then
+    local MOD_STATE
+    MOD_STATE="$(psql -Atqc "SELECT state FROM ir_module_module WHERE name='${MODULE}'" "${DB}" 2>/dev/null | head -n1 | tr -d '[:space:]' || true)"
+    case "${MOD_STATE}" in
+      installed|to*) ACTION="-u" ;;
+    esac
+    printf '==> MODULE: %s | DB: %s | STATE: %s | ACTION: %s\n' "$MODULE" "$DB" "${MOD_STATE:-unknown}" "$ACTION"
+  fi
+
+  # ---------- Terapkan install/upgrade lalu jalankan server (ID) ----------
+  "$PY" "$ODOO_BIN" -c "$USER_HOME/.odoo/odoo.conf" \
+    --addons-path="$ADDONS_CORE,$ADDONS_CUSTOM" \
+    -d "$DB" $ACTION "$MODULE" --stop-after-init
+
+  exec "$PY" "$ODOO_BIN" -c "$USER_HOME/.odoo/odoo.conf" \
+    --addons-path="$ADDONS_CORE,$ADDONS_CUSTOM" \
+    -d "$DB" --dev=reload
 }
