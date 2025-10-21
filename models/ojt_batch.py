@@ -89,7 +89,6 @@ class OJTBatch(models.Model):
         required=True,
         default=lambda self: self.env.company,
         index=True,
-        check_company=True,
     )
     active = fields.Boolean(default=True)
 
