@@ -37,11 +37,14 @@
                                             role="progressbar"
                                             aria-valuemin="0"
                                             aria-valuemax="100"
-                                            aria-valuenow="0"
                                             t-att-aria-valuenow="record.progress_ratio.value or 0"
                                             t-att-aria-valuetext="'%s%%%% complete' % (record.progress_ratio.value or 0)"
                                         >
-                                            <div class="o_progressbar_complete" t-att-style="'width: %s%%' % (record.progress_ratio.value or 0)"/>
+                                            <div
+                                                class="o_progressbar_complete"
+                                                t-att-style="'width: %s%%' % (record.progress_ratio.value or 0)"
+                                                t-att-aria-label="'%s%%%% complete' % (record.progress_ratio.value or 0)"
+                                            />
                                         </div>
                                     </div>
                                     <div class="o_kanban_record_details">
