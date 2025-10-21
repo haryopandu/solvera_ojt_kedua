@@ -28,22 +28,24 @@
                                         </span>
                                     </div>
                                     <div class="o_kanban_record_progress">
+                                        <t t-set="raw_progress" t-value="record.progress_ratio.value or 0.0"/>
+                                        <t t-set="progress_value" t-value="max(0.0, min(raw_progress, 100.0))"/>
                                         <div class="o_kanban_record_progress_title">
                                             <span>Average Progress</span>
-                                            <span><t t-esc="(record.progress_ratio.value or 0.0)"/>%</span>
+                                            <span><t t-esc="'%.2f' % progress_value"/>%</span>
                                         </div>
                                         <div
                                             class="o_progressbar"
                                             role="progressbar"
                                             aria-valuemin="0"
                                             aria-valuemax="100"
-                                            t-att-aria-valuenow="record.progress_ratio.value or 0"
-                                            t-att-aria-valuetext="'%s%%%% complete' % (record.progress_ratio.value or 0)"
+                                            t-att-aria-valuenow="'%.2f' % progress_value"
+                                            t-att-aria-valuetext="'%.2f%% complete' % progress_value"
                                         >
                                             <div
                                                 class="o_progressbar_complete"
-                                                t-att-style="'width: %s%%' % (record.progress_ratio.value or 0)"
-                                                t-att-aria-label="'%s%%%% complete' % (record.progress_ratio.value or 0)"
+                                                t-att-style="'width: %.2f%%' % progress_value"
+                                                t-att-aria-label="'%.2f%% complete' % progress_value"
                                             />
                                         </div>
                                     </div>
