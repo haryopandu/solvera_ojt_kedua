@@ -7,3 +7,7 @@ access_ojt_participant_manager,ojt.participant.manager,model_ojt_participant,sol
 access_ojt_participant_coordinator,ojt.participant.coordinator,model_ojt_participant,solvera_ojt_kedua.ojt_group_coordinator,1,1,1,1
 access_ojt_participant_mentor,ojt.participant.mentor,model_ojt_participant,solvera_ojt_kedua.ojt_group_mentor,1,0,0,0
 access_ojt_participant_trainer,ojt.participant.trainer,model_ojt_participant,solvera_ojt_kedua.ojt_group_trainer,1,0,0,0
+access_ojt_event_link_manager,ojt.event.link.manager,model_ojt_event_link,solvera_ojt_kedua.ojt_group_manager,1,1,1,1
+access_ojt_event_link_coordinator,ojt.event.link.coordinator,model_ojt_event_link,solvera_ojt_kedua.ojt_group_coordinator,1,1,1,1
+access_ojt_event_link_mentor,ojt.event.link.mentor,model_ojt_event_link,solvera_ojt_kedua.ojt_group_mentor,1,0,0,0
+access_ojt_event_link_trainer,ojt.event.link.trainer,model_ojt_event_link,solvera_ojt_kedua.ojt_group_trainer,1,0,0,0

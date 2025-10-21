@@ -96,7 +96,28 @@
                                 <field name="mode" string="Mode"/>
                                 <field name="capacity" string="Capacity"/>
                                 <field name="course_ids" string="Courses" widget="many2many_tags"/>
-                                <field name="event_link_ids" string="Event Links" widget="one2many_list"/>
+                                <field name="event_link_ids" string="Event Links">
+                                    <tree editable="bottom">
+                                        <field name="name"/>
+                                        <field name="event_id"/>
+                                        <field name="start_datetime"/>
+                                        <field name="end_datetime"/>
+                                        <field name="location"/>
+                                        <field name="external_url" widget="url"/>
+                                    </tree>
+                                    <form string="Event Link">
+                                        <group>
+                                            <field name="name"/>
+                                            <field name="batch_id" readonly="1"/>
+                                            <field name="event_id"/>
+                                            <field name="start_datetime"/>
+                                            <field name="end_datetime"/>
+                                            <field name="location"/>
+                                            <field name="external_url" widget="url"/>
+                                            <field name="description" widget="text"/>
+                                        </group>
+                                    </form>
+                                </field>
                                 <field name="participant_ids" string="Participants" widget="one2many_list"/>
                                 <field name="certificate_rule_attendance" string="Certificate Rule (Attendance %)"/>
                                 <field name="certificate_rule_score" string="Certificate Rule (Score)"/>
