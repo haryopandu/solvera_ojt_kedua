@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="seq_ojt_batch_code" model="ir.sequence">
+            <field name="name">OJT Batch Code</field>
+            <field name="code">ojt.batch</field>
+            <field name="prefix">OJTBATCH/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="number_next">1</field>
+            <field name="company_id" eval="False"/>
+        </record>
+    </data>
+</odoo>

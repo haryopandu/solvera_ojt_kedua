@@ -17,7 +17,11 @@
         'mail',
     ],
     'data': [
+        'security/ojt_security.xml',
+        'security/ir.model.access.csv',
+        'data/ojt_batch_sequence.xml',
         'data/hr_recruitment_stage_data.xml',
+        'views/ojt_batch_views.xml',
         'views/hr_applicant_views.xml',
         'views/menu.xml',
     ],

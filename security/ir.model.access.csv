@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_ojt_batch_manager,ojt.batch.manager,model_ojt_batch,solvera_ojt_kedua.ojt_group_manager,1,1,1,1
+access_ojt_batch_coordinator,ojt.batch.coordinator,model_ojt_batch,solvera_ojt_kedua.ojt_group_coordinator,1,1,1,1
+access_ojt_batch_mentor,ojt.batch.mentor,model_ojt_batch,solvera_ojt_kedua.ojt_group_mentor,1,0,0,0
+access_ojt_batch_trainer,ojt.batch.trainer,model_ojt_batch,solvera_ojt_kedua.ojt_group_trainer,1,0,0,0
+access_ojt_participant_manager,ojt.participant.manager,model_ojt_participant,solvera_ojt_kedua.ojt_group_manager,1,1,1,1
+access_ojt_participant_coordinator,ojt.participant.coordinator,model_ojt_participant,solvera_ojt_kedua.ojt_group_coordinator,1,1,1,1
+access_ojt_participant_mentor,ojt.participant.mentor,model_ojt_participant,solvera_ojt_kedua.ojt_group_mentor,1,0,0,0
+access_ojt_participant_trainer,ojt.participant.trainer,model_ojt_participant,solvera_ojt_kedua.ojt_group_trainer,1,0,0,0

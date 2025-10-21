@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <record id="view_ojt_batch_kanban" model="ir.ui.view">
+            <field name="name">ojt.batch.kanban</field>
+            <field name="model">ojt.batch</field>
+            <field name="arch" type="xml">
+                <kanban class="o_kanban_small_column" default_group_by="state" quick_create="0">
+                    <field name="color"/>
+                    <field name="progress_ratio"/>
+                    <field name="start_date"/>
+                    <field name="end_date"/>
+                    <field name="participant_ids"/>
+                    <field name="next_event_display"/>
+                    <templates>
+                        <t t-name="kanban-box">
+                            <div class="oe_kanban_card">
+                                <div class="o_kanban_record_top">
+                                    <div class="o_kanban_primary_left">
+                                        <field name="color" widget="kanban_color_picker"/>
+                                        <strong t-esc="record.name.value"/>
+                                    </div>
+                                </div>
+                                <div class="o_kanban_record_body">
+                                    <div class="o_kanban_record_subtitle">
+                                        <span>
+                                            <t t-esc="record.start_date.value"/> - <t t-esc="record.end_date.value"/>
+                                        </span>
+                                    </div>
+                                    <div class="o_kanban_record_progress">
+                                        <div class="o_kanban_record_progress_title">
+                                            <span>Average Progress</span>
+                                            <span><t t-esc="(record.progress_ratio.value or 0.0)"/>%</span>
+                                        </div>
+                                        <div class="o_progressbar">
+                                            <div class="o_progressbar_complete" t-att-style="'width: %s%%' % (record.progress_ratio.value or 0)"/>
+                                        </div>
+                                    </div>
+                                    <div class="o_kanban_record_details">
+                                        <div>
+                                            <span class="fa fa-users me-1" role="img" aria-label="Participants"/>
+                                            <span>Total Active Participants: </span>
+                                            <span t-esc="record.participant_ids.count or 0"/>
+                                        </div>
+                                        <div>
+                                            <span class="fa fa-calendar me-1" role="img" aria-label="Next agenda"/>
+                                            <span t-if="record.next_event_display.value">Next Agenda: <t t-esc="record.next_event_display.value"/></span>
+                                            <span t-if="not record.next_event_display.value">No upcoming agenda</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </templates>
+                </kanban>
+            </field>
+        </record>
+
+        <record id="view_ojt_batch_list" model="ir.ui.view">
+            <field name="name">ojt.batch.list</field>
+            <field name="model">ojt.batch</field>
+            <field name="arch" type="xml">
+                <list string="OJT Batches" create="true" editable="false">
+                    <field name="name"/>
+                    <field name="code"/>
+                    <field name="job_id"/>
+                    <field name="department_id"/>
+                    <field name="start_date"/>
+                    <field name="end_date"/>
+                    <field name="mode"/>
+                    <field name="capacity"/>
+                    <field name="progress_ratio"/>
+                    <field name="state" widget="badge" optional="show"/>
+                </list>
+            </field>
+        </record>
+
+        <record id="view_ojt_batch_form" model="ir.ui.view">
+            <field name="name">ojt.batch.form</field>
+            <field name="model">ojt.batch</field>
+            <field name="arch" type="xml">
+                <form string="OJT Batch">
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="name" string="Batch Name"/>
+                                <field name="code" string="Batch Code" readonly="1"/>
+                                <field name="job_id" string="Recruitment Job"/>
+                                <field name="description" string="Description" widget="html"/>
+                                <field name="department_id" string="Department"/>
+                                <field name="mentor_ids" string="Mentors" widget="many2many_tags"/>
+                                <field name="start_date" string="Start Date"/>
+                                <field name="end_date" string="End Date"/>
+                            </group>
+                            <group>
+                                <field name="mode" string="Mode"/>
+                                <field name="capacity" string="Capacity"/>
+                                <field name="course_ids" string="Courses" widget="many2many_tags"/>
+                                <field name="event_link_ids" string="Event Links" widget="one2many_list"/>
+                                <field name="participant_ids" string="Participants" widget="one2many_list"/>
+                                <field name="certificate_rule_attendance" string="Certificate Rule (Attendance %)"/>
+                                <field name="certificate_rule_score" string="Certificate Rule (Score)"/>
+                                <field name="progress_ratio" string="Progress Ratio" readonly="1"/>
+                                <field name="survey_id" string="Batch Evaluation Survey"/>
+                            </group>
+                        </group>
+                        <group>
+                            <group>
+                                <field name="state" string="State"/>
+                                <field name="next_event_display" string="Next Agenda" readonly="1"/>
+                                <field name="color" widget="color"/>
+                            </group>
+                            <group>
+                                <field name="company_id"/>
+                                <field name="active"/>
+                            </group>
+                        </group>
+                    </sheet>
+                    <chatter>
+                        <field name="message_follower_ids"/>
+                        <field name="message_ids"/>
+                        <field name="activity_ids"/>
+                    </chatter>
+                </form>
+            </field>
+        </record>
+
+        <record id="view_ojt_batch_search" model="ir.ui.view">
+            <field name="name">ojt.batch.search</field>
+            <field name="model">ojt.batch</field>
+            <field name="arch" type="xml">
+                <search>
+                    <field name="name"/>
+                    <field name="code"/>
+                    <field name="job_id"/>
+                    <field name="department_id"/>
+                    <field name="state"/>
+                    <filter string="Active" domain="[('active', '=', True)]"/>
+                    <filter string="Inactive" domain="[('active', '=', False)]"/>
+                    <group expand="0" string="Group By">
+                        <filter string="State" context="{'group_by': 'state'}"/>
+                        <filter string="Department" context="{'group_by': 'department_id'}"/>
+                        <filter string="Mode" context="{'group_by': 'mode'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+    </data>
+</odoo>

@@ -20,7 +20,10 @@ class HrApplicant(models.Model):
     def action_enroll_to_ojt(self):
         """Post a confirmation message when an accepted applicant is enrolled."""
         self.ensure_one()
-        accepted_stage = self.env.ref('solvera_ojt_kedua.hr_recruitment_stage_accepted', raise_if_not_found=False)
+        accepted_stage = self.env.ref(
+            'solvera_ojt_kedua.hr_recruitment_stage_accepted',
+            raise_if_not_found=False,
+        )
         if not accepted_stage or self.stage_id != accepted_stage:
             raise UserError(_('Only applicants in the Accepted stage can be enrolled to OJT.'))
         self.message_post(body=_('Applicant enrolled to OJT.'))
