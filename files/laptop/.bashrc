@@ -1,4 +1,4 @@
-# Jalankan dengan perintah wsl -d Ubuntu-24.04 lalu ojtgo di PowerShell
+# Jalankan dengan perintah wsl -d Ubuntu-24.04, lalu source ~/.bashrc, dan ojtgo di PowerShell
 # ~/.bashrc: executed by bash(1) for non-login shells.
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
