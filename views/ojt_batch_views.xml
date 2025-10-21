@@ -37,8 +37,8 @@
                                         <div
                                             class="o_progressbar"
                                             role="progressbar"
-                                            aria-valuemin="0"
-                                            aria-valuemax="100"
+                                            t-att-aria-valuemin="'0'"
+                                            t-att-aria-valuemax="'100'"
                                             aria-valuenow="0"
                                             aria-valuetext="0% complete"
                                             t-att-aria-valuenow="'%.2f' % progress_value"
