@@ -1,37 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-    <data>
-        <menuitem
-            id="menu_sol_ojt_management_root"
-            name="OJT Management"
-            sequence="10"
-            app="true"
-            web_icon="solvera_ojt_kedua,static/description/icon.png"
-        />
+    <menuitem
+        id="menu_sol_ojt_management_root"
+        name="OJT Management"
+        sequence="10"
+        app="true"
+        web_icon="solvera_ojt_kedua,static/description/icon.png"
+    />
 
-        <record id="action_sol_ojt_batches" model="ir.actions.act_window">
-            <field name="name">Batches</field>
-            <field name="res_model">ojt.batch</field>
-            <field name="view_mode">kanban,list,form</field>
-            <field name="search_view_id" ref="view_ojt_batch_search"/>
-            <field name="context">{'default_company_id': context.get('company_id')}</field>
-            <field name="help" type="html">
-                <p class="o_view_nocontent_smiling_face">
-                    <span class="fa fa-graduation-cap"/>
-                    <span>Create your first OJT batch to start organizing participants.</span>
-                </p>
-                <p>
-                    Set up mentors, event links, and courses to deliver an engaging on-the-job training experience.
-                </p>
-            </field>
-        </record>
+    <record id="action_sol_ojt_batches" model="ir.actions.act_window">
+        <field name="name">Batches</field>
+        <field name="res_model">ojt.batch</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_ojt_batch_search"/>
+        <field name="context">{'default_company_id': context.get('company_id')}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                <span class="fa fa-graduation-cap"/>
+                <span>Create your first OJT batch to start organizing participants.</span>
+            </p>
+            <p>
+                Set up mentors, event links, and courses to deliver an engaging on-the-job training experience.
+            </p>
+        </field>
+    </record>
 
-        <menuitem
-            id="menu_sol_ojt_batches"
-            name="Batches"
-            parent="menu_sol_ojt_management_root"
-            action="action_sol_ojt_batches"
-            sequence="10"
-        />
-    </data>
+    <menuitem
+        id="menu_sol_ojt_batches"
+        name="Batches"
+        parent="menu_sol_ojt_management_root"
+        action="action_sol_ojt_batches"
+        sequence="10"
+    />
 </odoo>
