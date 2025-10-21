@@ -37,6 +37,7 @@
                                             role="progressbar"
                                             aria-valuemin="0"
                                             aria-valuemax="100"
+                                            aria-valuenow="0"
                                             t-att-aria-valuenow="record.progress_ratio.value or 0"
                                             t-att-aria-valuetext="'%s%%%% complete' % (record.progress_ratio.value or 0)"
                                         >
@@ -82,6 +83,40 @@
             </field>
         </record>
 
+        <record id="view_ojt_event_link_list" model="ir.ui.view">
+            <field name="name">ojt.event.link.list</field>
+            <field name="model">ojt.event.link</field>
+            <field name="arch" type="xml">
+                <list editable="bottom">
+                    <field name="name"/>
+                    <field name="event_id"/>
+                    <field name="start_datetime"/>
+                    <field name="end_datetime"/>
+                    <field name="location"/>
+                    <field name="external_url" widget="url"/>
+                </list>
+            </field>
+        </record>
+
+        <record id="view_ojt_event_link_form" model="ir.ui.view">
+            <field name="name">ojt.event.link.form</field>
+            <field name="model">ojt.event.link</field>
+            <field name="arch" type="xml">
+                <form string="Event Link">
+                    <group>
+                        <field name="name"/>
+                        <field name="batch_id" readonly="1"/>
+                        <field name="event_id"/>
+                        <field name="start_datetime"/>
+                        <field name="end_datetime"/>
+                        <field name="location"/>
+                        <field name="external_url" widget="url"/>
+                        <field name="description" widget="text"/>
+                    </group>
+                </form>
+            </field>
+        </record>
+
         <record id="view_ojt_batch_form" model="ir.ui.view">
             <field name="name">ojt.batch.form</field>
             <field name="model">ojt.batch</field>
@@ -106,30 +141,11 @@
                                 <field
                                     name="event_link_ids"
                                     string="Event Links"
-                                    context="{'default_batch_id': active_id}"
-                                    mode="tree,form"
-                                >
-                                    <tree editable="bottom">
-                                        <field name="name"/>
-                                        <field name="event_id"/>
-                                        <field name="start_datetime"/>
-                                        <field name="end_datetime"/>
-                                        <field name="location"/>
-                                        <field name="external_url" widget="url"/>
-                                    </tree>
-                                    <form string="Event Link">
-                                        <group>
-                                            <field name="name"/>
-                                            <field name="batch_id" readonly="1"/>
-                                            <field name="event_id"/>
-                                            <field name="start_datetime"/>
-                                            <field name="end_datetime"/>
-                                            <field name="location"/>
-                                            <field name="external_url" widget="url"/>
-                                            <field name="description" widget="text"/>
-                                        </group>
-                                    </form>
-                                </field>
+                                    context="{'default_batch_id': active_id,
+                                            'list_view_ref': 'solvera_ojt_kedua.view_ojt_event_link_list',
+                                            'form_view_ref': 'solvera_ojt_kedua.view_ojt_event_link_form'}"
+                                    mode="list,form"
+                                />
                                 <field name="participant_ids" string="Participants" widget="one2many_list"/>
                                 <field name="certificate_rule_attendance" string="Certificate Rule (Attendance %)"/>
                                 <field name="certificate_rule_score" string="Certificate Rule (Score)"/>
