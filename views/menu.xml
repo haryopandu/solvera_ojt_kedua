@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
     <data noupdate="0">
-        <menuitem id="menu_sol_ojt_management_root" name="OJT Management" sequence="10"/>
+        <menuitem
+            id="menu_sol_ojt_management_root"
+            name="OJT Management"
+            sequence="10"
+            app="True"
+            web_icon="solvera_ojt_kedua,static/description/icon.png"
+        />
 
         <record id="action_sol_ojt_batches" model="ir.actions.act_window">
             <field name="name">Batches</field>
