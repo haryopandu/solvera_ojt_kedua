@@ -5,8 +5,8 @@
             id="menu_sol_ojt_management_root"
             name="OJT Management"
             sequence="10"
-            app="true"
-            web_icon="solvera_ojt_kedua,static/description/icon.png"
+            app="True"
+            web_icon="solvera_ojt_kedua/static/description/icon.png"
         />
 
         <record id="action_sol_ojt_batches" model="ir.actions.act_window">
