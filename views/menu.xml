@@ -6,7 +6,7 @@
             name="OJT Management"
             sequence="10"
             app="1"
-            web_icon="solvera_ojt_kedua/static/description/icon.png"
+            web_icon="solvera_ojt_kedua,static/description/icon.png"
         />
 
         <record id="action_sol_ojt_batches" model="ir.actions.act_window">
