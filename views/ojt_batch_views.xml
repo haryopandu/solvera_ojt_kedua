@@ -37,17 +37,14 @@
                                         <div
                                             class="o_progressbar"
                                             role="progressbar"
-                                            aria-valuemin="0"
-                                            aria-valuemax="100"
-                                            aria-valuenow="0"
-                                            aria-valuetext="0% complete"
+                                            t-att-aria-valuemin="0"
+                                            t-att-aria-valuemax="100"
                                             t-att-aria-valuenow="'%.2f' % progress_value"
                                             t-att-aria-valuetext="'%.2f%% complete' % progress_value"
                                         >
                                             <div
                                                 class="o_progressbar_complete"
                                                 t-att-style="'width: %.2f%%' % progress_value"
-                                                aria-label="0% complete"
                                                 t-att-aria-label="'%.2f%% complete' % progress_value"
                                             />
                                         </div>
