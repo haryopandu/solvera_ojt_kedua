@@ -7,6 +7,7 @@
     'category': 'Human Resources/OJT',
     'license': 'OPL-1',
     'application': True,
+    'icon': 'static/description/icon.png',
     'depends': [
         'hr_recruitment',
         'event',
@@ -26,5 +27,5 @@
         'views/menu.xml',
     ],
     'installable': True,
-    'auto_install': True,
+    'auto_install': False,
 }
