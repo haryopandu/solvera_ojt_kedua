@@ -1,170 +1,191 @@
-Di bawah ini adalah setup script idempotent yang disarankan oleh ChatGPT untuk eksekusi kode (code execution) Codex OpenAI setelah mempertimbangkan saran dari Codex. Script ini kompatibel dengan Odoo 18, PostgreSQL 17, dan Python 3.12.12 yang diinstal di WSL
-
 #!/usr/bin/env bash
 # =========================================================
 #  Setup ringan & tahan banting untuk Codex/OpenAPI & WSL
-#  - Default: SAFE_MODE=1 => tanpa apt, tanpa service
-#  - Local WSL: jalankan SAFE_MODE=0 untuk setup penuh
+#  - Default: SAFE_MODE=1 => tanpa apt, tanpa service/clone
+#  - Local WSL: SAFE_MODE=0 => boleh apt + pinned deps Odoo
+#  - CI/cloud: RUN_TESTS=1 otomatis (kecuali dioverride)
+#  - Tes Odoo dianjurkan pakai POSTGRES_URI_TEST (role harus
+#    bisa CREATE DATABASE / punya hak CREATEDB)
+#  - DRY_RUN=1 untuk melihat aksi saja tanpa eksekusi
+#  - Coverage & filter: ODOO_ENABLE_COVERAGE=1, ODOO_EXTRA_TEST_TAGS
+#  - Sandbox demo: ODOO_LOAD_SANDBOX=1 (muat base+modul+bahasa)
 # =========================================================
 set -Eeuo pipefail
 trap 'echo "[setup] Gagal di line $LINENO (exit $?)" >&2' ERR
 
+# ---------------------------------------------------------
+#  Lokasi skrip (untuk perintah one-shot yang akurat)
+# ---------------------------------------------------------
+SCRIPT_PATH="$0"
+if [[ "$SCRIPT_PATH" != /* ]]; then SCRIPT_PATH="$(pwd)/$SCRIPT_PATH"; fi
+
 # =========================
 #  Variabel (bisa dioverride lewat ENV)
 # =========================
-USER_HOME="${USER_HOME:-/home/codex}"          # ganti ke /home/haryo bila dipakai di WSL
+USER_HOME="${USER_HOME:-/home/codex}"            # ganti ke /home/haryo bila di WSL
 VENV_DIR="${VENV_DIR:-$USER_HOME/.venvs/odoo18}"
-WORK_DIR="${WORK_DIR:-$USER_HOME/work}"        # untuk menaruh Odoo core
-ODOO_DIR="${ODOO_DIR:-$WORK_DIR/odoo}"         # lokasi clone Odoo 18
-CUSTOM_ADDONS="${CUSTOM_ADDONS:-$USER_HOME/custom_addons}"  # lokasi addon kustom
+WORK_DIR="${WORK_DIR:-$USER_HOME/work}"          # tempat Odoo core
+ODOO_DIR="${ODOO_DIR:-$WORK_DIR/odoo}"           # lokasi clone odoo 18
+CUSTOM_ADDONS="${CUSTOM_ADDONS:-$USER_HOME/custom_addons}"
 DB_NAME="${ODOO_DB_NAME:-odoo18}"
 
-# SAFE_MODE:
-#  - "1"  : ringan (default) -> skip apt, postgres, clone
-#  - "0"  : berat  (khusus lokal) -> boleh apt, postgres, clone
-#  - "auto": deteksi; di CI/cloud tetap anggap 1 (aman)
-SAFE_MODE="${SAFE_MODE:-auto}"
-if [ "$SAFE_MODE" = "auto" ]; then
-  # Deteksi CI/cloud -> selalu ringan
-  if [ -n "${CI:-}${GITHUB_ACTIONS:-}${CODESPACES:-}${CODEBUILD_BUILD_ID:-}${CODEX:-}" ]; then
-    SAFE_MODE="1"
-  else
-    # Di mesin lokal, tetap default ringan kecuali eksplisit
-    SAFE_MODE="1"
-  fi
+# --- Pengaturan test ----
+TS="${TS:-$(date +%Y%m%d-%H%M%S)}"               # timestamp log/report
+TEST_DB_NAME="${ODOO_TEST_DB_NAME:-${DB_NAME}_test}"
+TEST_TAGS="${ODOO_TEST_TAGS:-solvera_ojt_kedua}" # tag default modul
+ODOO_EXTRA_TEST_TAGS="${ODOO_EXTRA_TEST_TAGS:-}" # tambah filter ekstra (opsional)
+TEST_REPORT_DIR="${TEST_REPORT_DIR:-$USER_HOME/.odoo/test-reports}"
+TEST_LOG_DIR="${TEST_LOG_DIR:-$USER_HOME/.odoo}"
+TEST_LOG="${TEST_LOG:-$TEST_LOG_DIR/test-$TS.log}"
+TEST_LOG_LATEST="${TEST_LOG_DIR}/test-latest.log"
+POSTGRES_URI_TEST="${POSTGRES_URI_TEST:-}"       # ex: postgresql://user:pass@host:5432/postgres
+ODOO_TEST_TIMEOUT="${ODOO_TEST_TIMEOUT:-900}"    # detik
+ODOO_ENABLE_COVERAGE="${ODOO_ENABLE_COVERAGE:-0}"
+
+# --- Mode heavy vs safe ---
+SAFE_MODE="${SAFE_MODE:-auto}"                   # 1=safe, 0=heavy, auto->1
+CI_DETECTED="${CI:-}${GITHUB_ACTIONS:-}${CODESPACES:-}${CODEBUILD_BUILD_ID:-}${CODEX:-}"
+
+# RUN_TESTS: CI auto=1 kecuali user set eksplisit
+if [ "${RUN_TESTS+x}" = x ]; then
+  RUN_TESTS="${RUN_TESTS}"
+else
+  RUN_TESTS="$([ -n "$CI_DETECTED" ] && echo 1 || echo 0)"
 fi
+
+# ODOO_ALLOW_CLONE: izinkan clone Odoo walau SAFE_MODE=1 saat butuh test
+if [ "${ODOO_ALLOW_CLONE+x}" = x ]; then
+  ODOO_ALLOW_CLONE="${ODOO_ALLOW_CLONE}"
+else
+  ODOO_ALLOW_CLONE="$([ "$RUN_TESTS" = "1" ] && echo 1 || echo 0)"
+fi
+
+# Heavy mode: pasang pinned requirements Odoo?
+ODOO_INSTALL_PINNED="${ODOO_INSTALL_PINNED:-$([ "$SAFE_MODE" = "0" ] && echo 1 || echo 0)}"
+
+# Evaluasi SAFE_MODE
+if [ "$SAFE_MODE" = "auto" ]; then SAFE_MODE="1"; fi
 do_heavy() { [ "$SAFE_MODE" = "0" ]; }
+
+# DRY_RUN: hanya echo aksi
+DRY_RUN="${DRY_RUN:-0}"
 
 # =========================
 #  Utilitas kecil
 # =========================
-# run_or_warn: jalankan perintah non-kritis; jika gagal, lanjut.
-run_or_warn() { "$@" || echo "[setup] (non-kritikal) perintah gagal: $*"; }
+_print_cmd() { printf '%q ' "$@"; printf '\n'; }
+
+run_or_warn() {            # perintah non-kritikal
+  if [ "$DRY_RUN" = "1" ]; then echo "[dry-run] $(_print_cmd "$@")"; return 0; fi
+  "$@" || echo "[setup] (non-kritikal) perintah gagal: $*"
+}
+run_or_fail() {            # perintah kritikal
+  if [ "$DRY_RUN" = "1" ]; then echo "[dry-run] $(_print_cmd "$@")"; return 0; fi
+  "$@"
+}
+
+have_timeout=0; command -v timeout >/dev/null 2>&1 && have_timeout=1
+
+# Redaksi URI (sembunyikan kredensial)
+redact_uri() {
+  printf '%s' "$1" | sed -E 's#(://)([^:/@]+):([^@]+)@#\1****:****@#'
+}
 
 # =========================
 #  Direktori & izin dasar
 # =========================
 export DEBIAN_FRONTEND=noninteractive
-run_or_warn mkdir -p "$USER_HOME/.cache/pip" "$USER_HOME/.cache/npm" "$USER_HOME/.odoo" "$WORK_DIR" "$CUSTOM_ADDONS" "$(dirname "$VENV_DIR")"
-
-# chown hanya jika root; di runner non-root biasanya tidak perlu
+run_or_warn mkdir -p "$USER_HOME/.cache/pip" "$USER_HOME/.cache/npm" "$USER_HOME/.odoo" \
+                    "$WORK_DIR" "$CUSTOM_ADDONS" "$(dirname "$VENV_DIR")" \
+                    "$TEST_REPORT_DIR" "$TEST_LOG_DIR"
 if [ "$(id -u)" -eq 0 ]; then
   run_or_warn chown -R "$(id -u)":"$(id -g)" "$USER_HOME/.cache" "$USER_HOME/.odoo"
 fi
 
 # =========================
-#  Paket sistem (opsional & hanya lokal)
+#  Python venv & pip (wheels-first)
 # =========================
-if do_heavy && command -v apt-get >/dev/null 2>&1; then
-  echo "[setup] Mode berat: install paket sistem…"
-  run_or_warn apt-get update -y
-  run_or_warn apt-get install -y --no-install-recommends \
-    git build-essential curl ca-certificates gnupg pkg-config \
-    python3-dev python3-venv python3-pip python3-setuptools python3-wheel \
-    libpq-dev libxml2-dev libxslt1-dev libjpeg-dev libpng-dev zlib1g-dev \
-    libldap2-dev libsasl2-dev libffi-dev libssl-dev \
-    fonts-dejavu-core xfonts-75dpi xfonts-base wkhtmltopdf
-else
-  echo "[setup] SAFE_MODE aktif: lewati install paket sistem."
-fi
-
-# =========================
-#  Python venv & pip (ringan; no-op bila gagal)
-# =========================
-PY_BIN="${PY_BIN:-python3}"
-if ! command -v "$PY_BIN" >/dev/null 2>&1; then PY_BIN="python"; fi
-
+PY_BIN="${PY_BIN:-python3}"; command -v "$PY_BIN" >/dev/null 2>&1 || PY_BIN="python"
 if command -v "$PY_BIN" >/dev/null 2>&1; then
-  if [ ! -d "$VENV_DIR" ]; then
-    run_or_warn "$PY_BIN" -m venv "$VENV_DIR"
-  fi
+  [ -d "$VENV_DIR" ] || run_or_warn "$PY_BIN" -m venv "$VENV_DIR"
   if [ -f "$VENV_DIR/bin/activate" ]; then
-    # shellcheck disable=SC1090
-    source "$VENV_DIR/bin/activate" || true
-    run_or_warn python -m pip install --upgrade pip wheel
+    if ! . "$VENV_DIR/bin/activate"; then
+      echo "[setup] Peringatan: aktivasi venv gagal (kemungkinan korup): $VENV_DIR"
+    else
+      if [ "${VIRTUAL_ENV:-}" != "$VENV_DIR" ]; then
+        echo "[setup] Peringatan: venv tidak aktif penuh (VIRTUAL_ENV berbeda)."
+      fi
+      run_or_warn python -m pip install --upgrade pip wheel
+      # subset wheels aman (tetap cepat di SAFE_MODE)
+      if [ "$DRY_RUN" = "1" ]; then
+        echo "[dry-run] pip install (wheels-only) paket inti Odoo"
+      else
+        python - <<'PY' || true
+import sys, subprocess
+pkgs = [
+  "Babel","decorator","docutils","Jinja2","MarkupSafe","Mako",
+  "lxml","Pillow","passlib","psycopg2-binary==2.9.9","python-dateutil",
+  "pytz","qrcode","reportlab","requests","urllib3","Werkzeug",
+  "num2words","psutil","XlsxWriter","xlrd"
+]
+subprocess.call([sys.executable,"-m","pip","install","--only-binary=:all:",*pkgs])
+PY
+      fi
+      # coverage opsional
+      if [ "$ODOO_ENABLE_COVERAGE" = "1" ]; then
+        run_or_warn python -m pip install --only-binary=:all: coverage
+      fi
+    fi
+  else
+    echo "[setup] Peringatan: file aktivasi venv tidak ditemukan: $VENV_DIR/bin/activate"
   fi
-
-  # Install requirements proyek (jika ada) tapi jangan gagal keras
-  if [ -f "requirements.txt" ]; then
-    run_or_warn python -m pip install --upgrade --upgrade-strategy only-if-needed -r requirements.txt
-  fi
-
-  # Paket umum Odoo – gunakan binary wheels jika ada; gagal? lanjut.
-  # Catatan: hindari build-from-source di cloud.
-  run_or_warn python -m pip install --only-binary=:all: \
-    "psycopg2-binary==2.9.9" "werkzeug" "num2words" "passlib" "babel" "pillow" "reportlab"
-
-  # lxml sering butuh header; coba wheel dulu, jika tidak ada biarkan skip
-  run_or_warn python -m pip install --only-binary=:all: "lxml"
 else
   echo "[setup] Python tidak ditemukan; lanjut tanpa venv/pip."
 fi
 
 # =========================
-#  PostgreSQL lokal (opsional & hanya lokal)
-# =========================
-if do_heavy; then
-  if ! command -v psql >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
-    echo "[setup] Install PostgreSQL 17 (lokal)…"
-    run_or_warn install -d /usr/share/postgresql-common/pgdg
-    run_or_warn sh -c 'echo "deb [arch=amd64,arm64] http://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-    run_or_warn curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
-    run_or_warn apt-get update -y
-    run_or_warn apt-get install -y postgresql-17 postgresql-client-17
-  fi
-
-  if command -v psql >/dev/null 2>&1; then
-    # Init cluster lokal di $USER_HOME/pgdata (idempotent)
-    if [ ! -d "$USER_HOME/pgdata" ]; then
-      run_or_warn su -s /bin/bash -c "/usr/lib/postgresql/17/bin/initdb -D $USER_HOME/pgdata" postgres
-    fi
-    run_or_warn su -s /bin/bash -c "/usr/lib/postgresql/17/bin/pg_ctl -D $USER_HOME/pgdata -l $USER_HOME/pg.log -o '-p 5432' start" postgres
-    # Buat role/db jika belum ada
-    run_or_warn psql -U postgres -h 127.0.0.1 -p 5432 -tc "SELECT 1 FROM pg_roles WHERE rolname = 'odoo'" | grep -q 1 || \
-      run_or_warn psql -U postgres -h 127.0.0.1 -p 5432 -c "CREATE USER odoo WITH PASSWORD 'odoo' CREATEDB;"
-    run_or_warn psql -U postgres -h 127.0.0.1 -p 5432 -tc "SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}'" | grep -q 1 || \
-      run_or_warn psql -U postgres -h 127.0.0.1 -p 5432 -c "CREATE DATABASE ${DB_NAME} OWNER odoo;"
-  else
-    echo "[setup] PostgreSQL tidak tersedia; gunakan DB URI eksternal."
-  fi
-else
-  echo "[setup] SAFE_MODE aktif: lewati PostgreSQL lokal."
-fi
-
-# =========================
-#  Odoo core (opsional & hanya lokal)
+#  Odoo core: clone (aman) + assert path
 # =========================
 CORE_ADDONS=""
 ODOO_BIN=""
-if do_heavy; then
-  if [ ! -d "$ODOO_DIR" ]; then
-    run_or_warn mkdir -p "$WORK_DIR"
-    run_or_warn git clone --depth 1 --branch 18.0 https://github.com/odoo/odoo.git "$ODOO_DIR"
-  fi
+maybe_clone=0
+do_heavy && maybe_clone=1
+[ "$ODOO_ALLOW_CLONE" = "1" ] && maybe_clone=1
 
-  if [ -d "$ODOO_DIR/odoo/addons" ]; then
-    CORE_ADDONS="$ODOO_DIR/odoo/addons"
-    ODOO_BIN="$ODOO_DIR/odoo/odoo-bin"
-  elif [ -d "$ODOO_DIR/addons" ]; then
-    CORE_ADDONS="$ODOO_DIR/addons"
-    ODOO_BIN="$ODOO_DIR/odoo-bin"
+if [ "$maybe_clone" = "1" ] && [ ! -d "$ODOO_DIR" ]; then
+  if ! command -v git >/dev/null 2>&1; then
+    echo "[setup] ERROR: 'git' tidak tersedia untuk clone Odoo. Instal git atau set ODOO_ALLOW_CLONE=0."
+    [ "$DRY_RUN" != "1" ] && exit 6
+  else
+    echo "[setup] Clone Odoo 18 (shallow)…"
+    run_or_warn mkdir -p "$WORK_DIR"
+    run_or_fail git clone --depth 1 --branch 18.0 https://github.com/odoo/odoo.git "$ODOO_DIR"
   fi
-else
-  echo "[setup] SAFE_MODE aktif: lewati clone Odoo core."
+fi
+
+# deteksi struktur odoo
+if [ -d "$ODOO_DIR/odoo/addons" ]; then
+  CORE_ADDONS="$ODOO_DIR/odoo/addons"; ODOO_BIN="$ODOO_DIR/odoo/odoo-bin"
+elif [ -d "$ODOO_DIR/addons" ]; then
+  CORE_ADDONS="$ODOO_DIR/addons"; ODOO_BIN="$ODOO_DIR/odoo-bin"
+fi
+
+# Heavy: install pinned requirements Odoo (opsional)
+if do_heavy && [ "$ODOO_INSTALL_PINNED" = "1" ] && [ -f "$ODOO_DIR/requirements.txt" ]; then
+  echo "[setup] Heavy mode: install pinned requirements Odoo (ini bisa lama)…"
+  run_or_warn python -m pip install -r "$ODOO_DIR/requirements.txt"
 fi
 
 # =========================
-#  Tulis ~/.odoo/odoo.conf (aman dipakai baik lokal maupun cloud)
+#  Konfigurasi odoo.conf (untuk run biasa)
 # =========================
 DB_URI="${POSTGRES_URI:-postgresql://odoo:odoo@127.0.0.1:5432/${DB_NAME}}"
-mkdir -p "$USER_HOME/.odoo"
-umask 077  # izin ketat untuk file rahasia
-# addons_path: repo saat ini + CUSTOM_ADDONS + (CORE_ADDONS jika ada)
-ADDONS_LINE="$(pwd),${CUSTOM_ADDONS}"
-if [ -n "$CORE_ADDONS" ]; then
-  ADDONS_LINE="${CORE_ADDONS},${ADDONS_LINE}"
-fi
-cat > "$USER_HOME/.odoo/odoo.conf" <<EOF
+run_or_warn mkdir -p "$USER_HOME/.odoo"; umask 077
+ADDONS_LINE="$(pwd),${CUSTOM_ADDONS}"; [ -n "$CORE_ADDONS" ] && ADDONS_LINE="${CORE_ADDONS},${ADDONS_LINE}"
+if [ "$DRY_RUN" = "1" ]; then
+  echo "[dry-run] Tulis $USER_HOME/.odoo/odoo.conf (db_uri=$(redact_uri "$DB_URI"))"
+else
+  cat > "$USER_HOME/.odoo/odoo.conf" <<EOF
 [options]
 db_uri = ${DB_URI}
 addons_path = ${ADDONS_LINE}
@@ -176,33 +197,328 @@ smtp_ssl = ${SMTP_SSL:-False}
 smtp_user = ${SMTP_USER:-}
 smtp_password = ${SMTP_PASSWORD:-}
 EOF
-chmod 600 "$USER_HOME/.odoo/odoo.conf"
+  chmod 600 "$USER_HOME/.odoo/odoo.conf"
+fi
+
+# =========================
+#  Assert awal untuk jalankan tes (direktori & executable)
+# =========================
+assert_odoo_paths() {
+  # (ID) Pastikan struktur kunci tersedia sebelum test
+  if [ -z "$ODOO_DIR" ] || [ ! -d "$ODOO_DIR" ]; then
+    echo "[tests] ERROR: ODOO_DIR tidak ada: $ODOO_DIR"; exit 10
+  fi
+  if [ -z "$CORE_ADDONS" ] || [ ! -d "$CORE_ADDONS" ]; then
+    echo "[tests] ERROR: CORE_ADDONS tidak ditemukan di dalam $ODOO_DIR"; exit 11
+  fi
+  if [ -z "$ODOO_BIN" ] || [ ! -x "$ODOO_BIN" ]; then
+    echo "[tests] ERROR: ODOO_BIN tidak executable: $ODOO_BIN"; exit 12
+  fi
+}
+
+# =========================
+#  Probe DB (reachability + hak)
+# =========================
+probe_db_connect() {
+  # (ID) Jika pg_isready ada, gunakan; jika tidak, psycopg2 connect
+  local uri="$1"; local require_create="${2:-0}"
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "[dry-run] Probe DB: $(redact_uri "$uri") require_create=$require_create"
+    return 0
+  fi
+  if command -v pg_isready >/dev/null 2>&1; then
+    # pg_isready tidak menerima URI, parse host/port dengan Python
+    local host port
+    read -r host port <<EOF
+$(python - <<'PY'
+import os, sys
+from urllib.parse import urlsplit
+u=urlsplit(os.environ["URI"])
+h=u.hostname or "127.0.0.1"
+p=str(u.port or 5432)
+print(h, p)
+PY
+URI="$uri")
+EOF
+    if ! pg_isready -h "$host" -p "$port" >/dev/null 2>&1; then
+      echo "[tests] ERROR: DB tidak siap pada ${host}:${port}"; return 1
+    fi
+  fi
+  # uji connect (dan optionally CREATE DATABASE)
+  local rc=0
+  REQUIRE_CREATE="$require_create" DB_URI_TEST_CONN="$uri" python - <<'PY' || rc=$?
+import os, time, random, string
+from urllib.parse import urlsplit
+try:
+  import psycopg2
+except Exception:
+  # jika psycopg2 tidak ada, berikan kode 2 agar caller bisa memberi saran
+  raise SystemExit(2)
+uri=os.environ["DB_URI_TEST_CONN"]; need=int(os.environ.get("REQUIRE_CREATE","0"))
+u=urlsplit(uri)
+dbname = "postgres" if not u.path or u.path=="/" else u.path.lstrip("/")
+conn = psycopg2.connect(dbname=dbname,user=u.username,password=u.password,host=u.hostname,port=u.port or 5432)
+if need:
+  conn.autocommit=True
+  cur=conn.cursor()
+  test=f"probe_tmp_{int(time.time())}"
+  try:
+    cur.execute(f'CREATE DATABASE "{test}"')
+    cur.execute(f'DROP DATABASE "{test}"')
+  finally:
+    cur.close()
+conn.close()
+PY
+  if [ "$rc" = "2" ]; then
+    echo "[tests] ERROR: psycopg2-binary belum terpasang untuk probe DB."
+    echo "       Jalankan: python -m pip install --only-binary=:all: psycopg2-binary==2.9.9"
+    return 1
+  fi
+  return "$rc"
+}
+
+# =========================
+#  Snapshots artefak konfigurasi
+# =========================
+snapshot_run_env() {
+  # (ID) Simpan konfigurasi & env (tanpa rahasia) ke TEST_REPORT_DIR
+  local snap_dir="$TEST_REPORT_DIR/$TS"
+  run_or_warn mkdir -p "$snap_dir"
+  # salin odoo.conf yang dipakai test (atau utama jika sama)
+  if [ -f "$1" ]; then cp -f "$1" "$snap_dir/odoo.conf"; fi
+  # cat env penting (redaksi kredensial)
+  {
+    echo "SAFE_MODE=$SAFE_MODE"
+    echo "RUN_TESTS=$RUN_TESTS"
+    echo "ODOO_ALLOW_CLONE=$ODOO_ALLOW_CLONE"
+    echo "ODOO_INSTALL_PINNED=$ODOO_INSTALL_PINNED"
+    echo "ODOO_DIR=$ODOO_DIR"
+    echo "CORE_ADDONS=$CORE_ADDONS"
+    echo "ODOO_BIN=$ODOO_BIN"
+    echo "DB_URI=$(redact_uri "$DB_URI")"
+    echo "POSTGRES_URI_TEST=$(redact_uri "$POSTGRES_URI_TEST")"
+    echo "TEST_DB_NAME=$TEST_DB_NAME"
+    echo "TEST_TAGS=$TEST_TAGS"
+    echo "ODOO_EXTRA_TEST_TAGS=$ODOO_EXTRA_TEST_TAGS"
+    echo "ODOO_ENABLE_COVERAGE=$ODOO_ENABLE_COVERAGE"
+    echo "ODOO_TEST_TIMEOUT=$ODOO_TEST_TIMEOUT"
+    echo "DRY_RUN=$DRY_RUN"
+  } > "$snap_dir/env.txt"
+  # symlink laporan terbaru
+  ln -sf "$TS" "$TEST_REPORT_DIR/latest" 2>/dev/null || true
+}
+
+# =========================
+#  Jalankan tes Odoo (fail-fast, artefak, coverage, filter)
+# =========================
+run_tests() {
+  [ "$DRY_RUN" = "1" ] && { echo "[dry-run] Menjalankan tes Odoo '/$TEST_TAGS' (report=$TEST_REPORT_DIR, log=$TEST_LOG)"; return 0; }
+  # assert path kunci
+  assert_odoo_paths
+
+  # rotasi log (timestamp + symlink latest)
+  : > "$TEST_LOG" || true
+  ln -sf "$(basename "$TEST_LOG")" "$TEST_LOG_LATEST" 2>/dev/null || true
+
+  # siapkan db_uri test (prefer remote & cek hak CREATEDB)
+  local CONF_TEST="$USER_HOME/.odoo/odoo_test.conf"
+  local DB_URI_TEST=""; local TEST_DB_CREATED=0
+
+  if [ -n "$POSTGRES_URI_TEST" ]; then
+    # probe dulu (reachable + hak CREATE)
+    if ! probe_db_connect "$POSTGRES_URI_TEST" 1; then
+      echo "[tests] ERROR: DB test tidak siap atau tidak punya hak CREATEDB."
+      exit 4
+    fi
+    # buat DB sementara via psycopg2
+    TMP_ENV="$(mktemp)"
+    POSTGRES_URI_TEST="$POSTGRES_URI_TEST" python - <<'PY' >"$TMP_ENV" || true
+import os, time, random, string
+from urllib.parse import urlsplit
+import psycopg2
+u=urlsplit(os.environ["POSTGRES_URI_TEST"])
+dbname="postgres" if not u.path or u.path=="/" else u.path.lstrip("/")
+user=u.username; pwd=u.password; host=u.hostname; port=u.port or 5432
+suffix=''.join(random.choices(string.ascii_lowercase+string.digits,k=6))
+test_db=f"codex_test_{time.strftime('%Y%m%d_%H%M%S')}_{suffix}"
+conn=psycopg2.connect(dbname=dbname,user=user,password=pwd,host=host,port=port)
+conn.autocommit=True
+cur=conn.cursor()
+cur.execute(f'CREATE DATABASE "{test_db}"')
+cur.close(); conn.close()
+print(f"TEST_DB_NAME={test_db}")
+print(f"DB_URI_TEST={u.scheme}://{user}:{pwd}@{host}:{port}/{test_db}")
+PY
+    # shellcheck disable=SC1090
+    . "$TMP_ENV" || true
+    rm -f "$TMP_ENV"
+
+    [ -n "${DB_URI_TEST:-}" ] || { echo "[tests] ERROR: gagal membuat DB sementara."; exit 4; }
+    TEST_DB_CREATED=1
+  else
+    # fallback: gunakan DB_URI utama; hanya probe koneksi
+    DB_URI_TEST="$DB_URI"
+    if ! probe_db_connect "$DB_URI_TEST" 0; then
+      echo "[tests] ERROR: DB utama tidak dapat dihubungi."; exit 4
+    fi
+  fi
+
+  # konfigurasi test terpisah (aktifkan demo=off)
+  umask 077
+  cat > "$CONF_TEST" <<EOF
+[options]
+db_uri = ${DB_URI_TEST}
+addons_path = ${CUSTOM_ADDONS},$(pwd)$( [ -n "$CORE_ADDONS" ] && printf ",%s" "$CORE_ADDONS")
+without_demo = all
+workers = 0
+limit-time-real = 0
+limit-time-cpu = 0
+limit-time-real-cron = 0
+log_level = test
+EOF
+  chmod 600 "$CONF_TEST"
+
+  # snapshot artefak konfigurasi/env
+  snapshot_run_env "$CONF_TEST"
+
+  # install base
+  echo "[tests] Install base -> $TEST_DB_NAME" | tee -a "$TEST_LOG"
+  if [ "$have_timeout" -eq 1 ]; then
+    timeout "$ODOO_TEST_TIMEOUT" "$ODOO_BIN" -c "$CONF_TEST" -d "$TEST_DB_NAME" -i base --stop-after-init | tee -a "$TEST_LOG" || true
+  else
+    "$ODOO_BIN" -c "$CONF_TEST" -d "$TEST_DB_NAME" -i base --stop-after-init | tee -a "$TEST_LOG" || true
+  fi
+
+  # rangkai test-tags (default + ekstra)
+  local combined="/$TEST_TAGS"
+  [ -n "$ODOO_EXTRA_TEST_TAGS" ] && combined="$combined,$ODOO_EXTRA_TEST_TAGS"
+
+  # jalankan test (opsional coverage)
+  echo "[tests] Jalankan test-tags: $combined" | tee -a "$TEST_LOG"
+  test_rc=0
+  if [ "$ODOO_ENABLE_COVERAGE" = "1" ] && command -v coverage >/dev/null 2>&1; then
+    runner=(coverage run -m)
+    # coverage run terhadap skrip langsung (bukan -m) juga valid:
+    # runner=(coverage run)
+  else
+    runner=()
+  fi
+
+  if [ "$have_timeout" -eq 1 ]; then
+    timeout "$ODOO_TEST_TIMEOUT" "${runner[@]}" "$ODOO_BIN" -c "$CONF_TEST" -d "$TEST_DB_NAME" \
+      --test-enable --test-tags="$combined" \
+      --log-level=test --test-report-directory "$TEST_REPORT_DIR/$TS" \
+      --stop-after-init | tee -a "$TEST_LOG" || test_rc=$?
+  else
+    "${runner[@]}" "$ODOO_BIN" -c "$CONF_TEST" -d "$TEST_DB_NAME" \
+      --test-enable --test-tags="$combined" \
+      --log-level=test --test-report-directory "$TEST_REPORT_DIR/$TS" \
+      --stop-after-init | tee -a "$TEST_LOG" || test_rc=$?
+  fi
+
+  # coverage report (jika ada)
+  if [ "$ODOO_ENABLE_COVERAGE" = "1" ] && command -v coverage >/dev/null 2>&1; then
+    coverage xml -o "$TEST_REPORT_DIR/$TS/coverage.xml" || true
+    coverage html -d "$TEST_REPORT_DIR/$TS/coverage-html" || true
+  fi
+
+  # drop DB sementara bila POSTGRES_URI_TEST dipakai
+  if [ "$TEST_DB_CREATED" -eq 1 ]; then
+    POSTGRES_URI_TEST="$POSTGRES_URI_TEST" TEST_DB_NAME="$TEST_DB_NAME" python - <<'PY' 2>/dev/null || true
+import os
+from urllib.parse import urlsplit
+import psycopg2
+db=os.environ["TEST_DB_NAME"]; u=urlsplit(os.environ["POSTGRES_URI_TEST"])
+dbname="postgres" if not u.path or u.path=="/" else u.path.lstrip("/")
+conn=psycopg2.connect(dbname=dbname,user=u.username,password=u.password,host=u.hostname,port=u.port or 5432)
+conn.autocommit=True
+cur=conn.cursor()
+cur.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=%s AND pid<>pg_backend_pid()", (db,))
+cur.execute(f'DROP DATABASE IF EXISTS "{db}"')
+cur.close(); conn.close()
+PY
+  fi
+
+  if [ "$test_rc" -ne 0 ]; then
+    echo "[tests] TEST GAGAL (rc=$test_rc). Log: $TEST_LOG ; Report: $TEST_REPORT_DIR/$TS/"
+    exit "$test_rc"
+  fi
+
+  echo "[tests] TEST SUKSES. Log: $TEST_LOG ; Report: $TEST_REPORT_DIR/$TS/"
+}
+
+# =========================
+#  Sandbox helper: load demo & bahasa (lokal saja)
+#  - ODOO_LOAD_SANDBOX=1 SANDBOX_DB_NAME=... SANDBOX_MODULES="base,modul"
+#  - SANDBOX_LANG=id_ID (default)
+# =========================
+run_sandbox() {
+  [ "$DRY_RUN" = "1" ] && { echo "[dry-run] Sandbox load demo/bahasa"; return 0; }
+  assert_odoo_paths
+  local SANDBOX_DB_NAME="${SANDBOX_DB_NAME:-${DB_NAME}_sandbox}"
+  local SANDBOX_MODULES="${SANDBOX_MODULES:-base,${TEST_TAGS}}"
+  local SANDBOX_LANG="${SANDBOX_LANG:-id_ID}"
+  local CONF_SB="$USER_HOME/.odoo/odoo_sandbox.conf"
+  # gunakan demo ON (tanpa without_demo)
+  cat > "$CONF_SB" <<EOF
+[options]
+db_uri = ${DB_URI}
+addons_path = ${CUSTOM_ADDONS},$(pwd)$( [ -n "$CORE_ADDONS" ] && printf ",%s" "$CORE_ADDONS")
+workers = 0
+log_level = info
+EOF
+  echo "[sandbox] Install: $SANDBOX_MODULES ; language=$SANDBOX_LANG ; DB=$SANDBOX_DB_NAME"
+  "$ODOO_BIN" -c "$CONF_SB" -d "$SANDBOX_DB_NAME" -i "$SANDBOX_MODULES" --load-language="$SANDBOX_LANG" --stop-after-init || true
+}
+
+# =========================
+#  Jalankan tes otomatis di CI / bila diminta
+# =========================
+if [ "$RUN_TESTS" = "1" ]; then
+  run_tests
+else
+  echo "[setup] RUN_TESTS=0 -> lewati tahap tes Odoo."
+fi
+
+# Sandbox opsional
+if [ "${ODOO_LOAD_SANDBOX:-0}" = "1" ]; then
+  run_sandbox
+fi
 
 # =========================
 #  Sanity output
 # =========================
-echo "[OK] Setup selesai. Mode: SAFE_MODE=${SAFE_MODE}"
-command -v python  && python --version || true
-command -v wkhtmltopdf && wkhtmltopdf --version || true
-command -v psql && psql --version || true
+echo "[OK] Setup selesai. Mode: SAFE_MODE=${SAFE_MODE}, RUN_TESTS=${RUN_TESTS}, ODOO_ALLOW_CLONE=${ODOO_ALLOW_CLONE}, ODOO_INSTALL_PINNED=${ODOO_INSTALL_PINNED}, DRY_RUN=${DRY_RUN}"
+command -v python >/dev/null 2>&1  && python --version || true
+[ -n "${ODOO_BIN}" ] && "$ODOO_BIN" --version || true
 
-# Petunjuk (akan bekerja jika Odoo core tersedia & DB siap)
 if [ -n "$ODOO_BIN" ]; then
   cat <<EOM
 
 # =========================
 #  Cara pakai (copy-paste)
 # =========================
-# Update modul Anda saja lalu berhenti:
-${ODOO_BIN} -c $USER_HOME/.odoo/odoo.conf -d "${DB_NAME}" -u solvera_ojt_core --stop-after-init
+# Run update modul lalu berhenti:
+${ODOO_BIN} -c $USER_HOME/.odoo/odoo.conf -d "${DB_NAME}" -u solvera_ojt_kedua --stop-after-init
 
-# Mode dev dengan auto-reload:
+# Mode dev:
 ${ODOO_BIN} -c $USER_HOME/.odoo/odoo.conf -d "${DB_NAME}" --dev=reload
 
-# Catatan:
-# - Di runner cloud, Odoo core & DB lokal biasanya tidak tersedia.
-# - Di WSL lokal, jalankan ulang dengan SAFE_MODE=0 untuk instal penuh.
+# One-shot CI-like run (lokal, heavy + tes):
+SAFE_MODE=0 ODOO_ALLOW_CLONE=1 RUN_TESTS=1 \\
+POSTGRES_URI_TEST="postgresql://user:pass@host:5432/postgres" \\
+bash "$SCRIPT_PATH"
+
+# Coverage + filter tag tambahan:
+ODOO_ENABLE_COVERAGE=1 ODOO_EXTRA_TEST_TAGS="account" RUN_TESTS=1 bash "$SCRIPT_PATH"
+
+# Dry-run untuk verifikasi pipeline (tanpa eksekusi):
+DRY_RUN=1 RUN_TESTS=1 ODOO_ALLOW_CLONE=1 bash "$SCRIPT_PATH"
+
+# Sandbox demo + bahasa:
+ODOO_LOAD_SANDBOX=1 SANDBOX_DB_NAME=ojt_dev SANDBOX_MODULES="base,solvera_ojt_kedua" SANDBOX_LANG=id_ID bash "$SCRIPT_PATH"
 EOM
 else
-  echo "[info] Odoo core tidak terdeteksi (ini normal di SAFE_MODE/cloud)."
+  echo "[info] Odoo core tidak terdeteksi (ini normal di SAFE_MODE=1 jika ODOO_ALLOW_CLONE=0)."
+  echo "[info] Untuk menjalankan tes: set ODOO_ALLOW_CLONE=1 dan POSTGRES_URI_TEST=…"
 fi
