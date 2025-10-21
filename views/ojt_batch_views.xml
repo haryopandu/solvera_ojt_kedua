@@ -141,8 +141,7 @@
                                 <field
                                     name="event_link_ids"
                                     string="Event Links"
-                                    context="{'default_batch_id': active_id,
-                                            'list_view_ref': 'solvera_ojt_kedua.view_ojt_event_link_list',
+                                    context="{'list_view_ref': 'solvera_ojt_kedua.view_ojt_event_link_list',
                                             'form_view_ref': 'solvera_ojt_kedua.view_ojt_event_link_form'}"
                                     mode="list,form"
                                 />
