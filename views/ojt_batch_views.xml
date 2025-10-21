@@ -177,18 +177,18 @@
             <field name="name">ojt.batch.search</field>
             <field name="model">ojt.batch</field>
             <field name="arch" type="xml">
-                <search>
+                <search string="Search OJT Batches">
                     <field name="name"/>
                     <field name="code"/>
                     <field name="job_id"/>
                     <field name="department_id"/>
                     <field name="state"/>
-                    <filter string="Active" domain="[('active', '=', True)]"/>
-                    <filter string="Inactive" domain="[('active', '=', False)]"/>
+                    <filter name="filter_active" string="Active" domain="[('active', '=', True)]"/>
+                    <filter name="filter_inactive" string="Inactive" domain="[('active', '=', False)]"/>
                     <group expand="0" string="Group By">
-                        <filter string="State" context="{'group_by': 'state'}"/>
-                        <filter string="Department" context="{'group_by': 'department_id'}"/>
-                        <filter string="Mode" context="{'group_by': 'mode'}"/>
+                        <filter name="group_state" string="State" context="{'group_by': 'state'}"/>
+                        <filter name="group_department" string="Department" context="{'group_by': 'department_id'}"/>
+                        <filter name="group_mode" string="Mode" context="{'group_by': 'mode'}"/>
                     </group>
                 </search>
             </field>
