@@ -59,7 +59,7 @@ class OJTBatch(models.Model):
     survey_id = fields.Many2one(
         'survey.survey',
         string='Evaluation Survey',
-        check_company=True,
+        help='Optional survey used to evaluate the batch once it is completed.',
     )
     state = fields.Selection(
         selection=[
