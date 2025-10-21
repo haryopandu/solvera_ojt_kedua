@@ -13,7 +13,7 @@
                     <field name="participant_ids"/>
                     <field name="next_event_display"/>
                     <templates>
-                        <t t-name="kanban-box">
+                        <t t-name="card">
                             <div class="oe_kanban_card">
                                 <div class="o_kanban_record_top">
                                     <div class="o_kanban_primary_left">
@@ -32,7 +32,7 @@
                                             <span>Average Progress</span>
                                             <span><t t-esc="(record.progress_ratio.value or 0.0)"/>%</span>
                                         </div>
-                                        <div class="o_progressbar">
+                                        <div class="o_progressbar" role="progressbar" t-att-aria-valuenow="record.progress_ratio.value or 0" aria-valuemin="0" aria-valuemax="100">
                                             <div class="o_progressbar_complete" t-att-style="'width: %s%%' % (record.progress_ratio.value or 0)"/>
                                         </div>
                                     </div>
@@ -60,7 +60,7 @@
             <field name="name">ojt.batch.list</field>
             <field name="model">ojt.batch</field>
             <field name="arch" type="xml">
-                <list string="OJT Batches" create="true" editable="false">
+                <list string="OJT Batches" create="true">
                     <field name="name"/>
                     <field name="code"/>
                     <field name="job_id"/>
