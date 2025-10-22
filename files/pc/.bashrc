@@ -1,4 +1,3 @@
-# Kalau belum ada, letakkan di ~ (\\wsl.localhost\Ubuntu-24.04\home\haryo)
 # ~/.bashrc: executed by bash(1) for non-login shells.
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
@@ -127,3 +126,8 @@ export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init --path)"
 eval "$(pyenv init -)"
 export PATH="$HOME/bin:$PATH"
+
+# (ID) Ingatkan jika systemd tidak aktif (misal fallback ke init)
+if [ "$(ps -p 1 -o comm=)" != "systemd" ]; then
+  echo "WARNING: systemd is not PID 1; services may misbehave in this session."
+fi
