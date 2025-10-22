@@ -131,3 +131,18 @@ export PATH="$HOME/bin:$PATH"
 if [ "$(ps -p 1 -o comm=)" != "systemd" ]; then
   echo "WARNING: systemd is not PID 1; services may misbehave in this session."
 fi
+
+# ——— Odoo 19 (stabil, Python 3.12) ———
+alias odoo19dev='[ -f "/home/haryo/.venvs/odoo19py312/bin/activate" ] && source "/home/haryo/.venvs/odoo19py312/bin/activate"; \
+cd "/home/haryo/work/odoo-19" && \
+python3 odoo-bin -c "/home/haryo/.odoo/odoo19.conf"'
+
+# ——— Odoo 19 (eksperimental, Python 3.14) ———
+alias odoo19py314='[ -f "/home/haryo/.venvs/odoo19py314/bin/activate" ] && source "/home/haryo/.venvs/odoo19py314/bin/activate"; \
+cd "/home/haryo/work/odoo-19" && \
+python3 odoo-bin -c "/home/haryo/.odoo/odoo19.conf"'
+
+# ——— Guardrail kecil: beri peringatan jika systemd bukan PID 1 ———
+if [ "$(ps -p 1 -o comm=)" != "systemd" ]; then
+  echo "WARNING: systemd is not PID 1; services may misbehave in this session."
+fi
